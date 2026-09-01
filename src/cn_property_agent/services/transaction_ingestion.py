@@ -7,7 +7,7 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cn_property_agent.domain import Community, FrozenModel, Transaction
-from cn_property_agent.providers import TransactionProvider
+from cn_property_agent.providers import ParseRejection, TransactionProvider
 from cn_property_agent.storage.repositories import TransactionRepository
 
 from .errors import ProviderFetchError
@@ -38,17 +38,45 @@ class TransactionIngestionRequest(BaseModel):
 
 
 class TransactionIngestionResult(FrozenModel):
-    """Explicit outcome of one ingestion operation."""
+    """Explicit outcome of one ingestion operation.
+
+    Two independent failure vocabularies are reported side by side and never
+    merged into a single number:
+
+    - ``parse_rejections``: source rows the provider's parser could not
+      interpret at all, carried through from the fetch result;
+    - ``quality_rejections``: parsed records that failed a canonical
+      data-quality gate.
+
+    The counts read as ``source_row_count >= parsed_count +
+    parse_rejection_count`` and ``parsed_count == upserted_count +
+    quality_rejection_count``. Derived counts are computed from the rejection
+    tuples so they cannot drift from the reasons they summarize.
+    """
 
     community_id: str = Field(min_length=1)
     start_date: date | None = None
     end_date: date | None = None
-    fetched_count: int = Field(ge=0)
+    source_row_count: int = Field(ge=0)
+    parsed_count: int = Field(ge=0)
     upserted_count: int = Field(ge=0)
-    rejected_count: int = Field(ge=0)
     transaction_ids: tuple[str, ...] = ()
-    rejections: tuple[TransactionRejection, ...] = ()
+    parse_rejections: tuple[ParseRejection, ...] = ()
+    quality_rejections: tuple[TransactionRejection, ...] = ()
     warnings: tuple[str, ...] = ()
+
+    @property
+    def parse_rejection_count(self) -> int:
+        return len(self.parse_rejections)
+
+    @property
+    def quality_rejection_count(self) -> int:
+        return len(self.quality_rejections)
+
+    @property
+    def rejection_count(self) -> int:
+        """Every row lost on the way to storage, parser and gates combined."""
+        return self.parse_rejection_count + self.quality_rejection_count
 
 
 class TransactionIngestionService:
@@ -74,7 +102,7 @@ class TransactionIngestionService:
         started_at = time.perf_counter()
 
         try:
-            records = await self.provider.fetch_transactions(
+            fetched = await self.provider.fetch_transactions(
                 community,
                 start_date=request.start_date,
                 end_date=request.end_date,
@@ -90,7 +118,7 @@ class TransactionIngestionService:
         rejections: list[TransactionRejection] = []
         warnings: list[str] = []
 
-        for record in records:
+        for record in fetched.records:
             outcome = normalize_transaction(
                 record,
                 community=community,
@@ -106,9 +134,12 @@ class TransactionIngestionService:
         upserted_count = self.repository.upsert_many(accepted.values())
 
         logger.info(
-            "transaction ingestion community_id=%s fetched=%d upserted=%d rejected=%d duration_s=%.3f",
+            "transaction ingestion community_id=%s source_rows=%d parsed=%d parse_rejected=%d"
+            " upserted=%d quality_rejected=%d duration_s=%.3f",
             community.community_id,
-            len(records),
+            fetched.source_row_count,
+            fetched.parsed_count,
+            fetched.parse_rejection_count,
             upserted_count,
             len(rejections),
             time.perf_counter() - started_at,
@@ -118,11 +149,12 @@ class TransactionIngestionService:
             community_id=community.community_id,
             start_date=request.start_date,
             end_date=request.end_date,
-            fetched_count=len(records),
+            source_row_count=fetched.source_row_count,
+            parsed_count=fetched.parsed_count,
             upserted_count=upserted_count,
-            rejected_count=len(rejections),
             transaction_ids=tuple(accepted),
-            rejections=tuple(rejections),
+            parse_rejections=fetched.parse_rejections,
+            quality_rejections=tuple(rejections),
             warnings=tuple(warnings),
         )
 

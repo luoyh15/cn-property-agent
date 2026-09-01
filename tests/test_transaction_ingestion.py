@@ -6,7 +6,15 @@ from typing import Iterator, Sequence
 import pytest
 
 from cn_property_agent.domain import Community, FloorBucket
-from cn_property_agent.providers import RawTransactionRecord, TransactionProvider
+from cn_property_agent.providers import (
+    ParseRejection,
+    ParseRejectionReason,
+    ParseResult,
+    RawTransactionRecord,
+    SourceRowRef,
+    TransactionFetchResult,
+    TransactionProvider,
+)
 from cn_property_agent.services import (
     MAX_UNIT_PRICE_TOLERANCE,
     ProviderFetchError,
@@ -43,11 +51,20 @@ def build_service(
 
 def make_provider(
     community: Community,
-    records: Sequence[RawTransactionRecord],
+    records: Sequence[RawTransactionRecord] | TransactionFetchResult,
     *,
     error: Exception | None = None,
 ) -> FakeTransactionProvider:
     return FakeTransactionProvider({community.community_id: records}, error=error)
+
+
+def make_parse_rejection(row_index: int, source_row_id: str) -> ParseRejection:
+    return ParseRejection(
+        row=SourceRowRef(source="fixture", row_index=row_index, source_row_id=source_row_id),
+        reason=ParseRejectionReason.MALFORMED_FIELD,
+        field="area_sqm",
+        detail="area_sqm 'about ninety' is not a number",
+    )
 
 
 def request_for(community: Community) -> TransactionIngestionRequest:
@@ -74,8 +91,9 @@ async def test_ingestion_persists_canonical_transactions_with_provenance(
 
     result = await service.ingest(request_for(ingestion_community))
 
-    assert (result.fetched_count, result.upserted_count, result.rejected_count) == (2, 2, 0)
-    assert result.rejections == ()
+    assert (result.source_row_count, result.parsed_count, result.upserted_count) == (2, 2, 2)
+    assert (result.parse_rejections, result.quality_rejections) == ((), ())
+    assert result.rejection_count == 0
     assert provider.calls == [(ingestion_community.community_id, WINDOW_START, WINDOW_END)]
 
     stored = repository.list_for_community(ingestion_community.community_id)
@@ -153,15 +171,73 @@ async def test_invalid_records_are_rejected_without_failing_the_batch(
 
     result = await service.ingest(request_for(ingestion_community))
 
-    assert result.fetched_count == len(invalid) + 1
+    assert result.source_row_count == result.parsed_count == len(invalid) + 1
     assert result.upserted_count == 1
-    assert result.rejected_count == len(invalid)
-    assert [rejection.reason for rejection in result.rejections] == list(expected_reasons.values())
-    assert all(rejection.source == "fixture" for rejection in result.rejections)
-    assert all(rejection.detail for rejection in result.rejections)
+    assert (result.parse_rejection_count, result.quality_rejection_count) == (0, len(invalid))
+    assert [rejection.reason for rejection in result.quality_rejections] == list(
+        expected_reasons.values()
+    )
+    assert all(rejection.source == "fixture" for rejection in result.quality_rejections)
+    assert all(rejection.detail for rejection in result.quality_rejections)
 
     stored = repository.list_for_community(ingestion_community.community_id)
     assert [item.source_transaction_id for item in stored] == ["sold-001"]
+
+
+@pytest.mark.asyncio
+async def test_parse_rejections_survive_ingestion(
+    database: DuckDBDatabase,
+    ingestion_community: Community,
+    provider_records: dict[str, RawTransactionRecord],
+) -> None:
+    rejection = make_parse_rejection(1, "sold-999")
+    fetched = TransactionFetchResult(
+        records=(provider_records["valid_a"],),
+        parse_rejections=(rejection,),
+    )
+    provider = make_provider(ingestion_community, fetched)
+    service, repository = build_service(database, provider)
+
+    result = await service.ingest(request_for(ingestion_community))
+
+    assert (result.source_row_count, result.parsed_count, result.upserted_count) == (2, 1, 1)
+    assert result.parse_rejections == (rejection,)
+    assert result.quality_rejections == ()
+    assert result.rejection_count == 1
+    assert result.parse_rejections[0].row.source_row_id == "sold-999"
+
+    stored = repository.list_for_community(ingestion_community.community_id)
+    assert [item.source_transaction_id for item in stored] == ["sold-001"]
+
+
+@pytest.mark.asyncio
+async def test_parse_and_quality_rejections_are_counted_separately(
+    database: DuckDBDatabase,
+    ingestion_community: Community,
+    provider_records: dict[str, RawTransactionRecord],
+) -> None:
+    fetched = TransactionFetchResult.from_parse_result(
+        ParseResult(
+            records=(provider_records["valid_a"], provider_records["negative_area"]),
+            rejections=(make_parse_rejection(2, "sold-999"),),
+        )
+    )
+    provider = make_provider(ingestion_community, fetched)
+    service, _ = build_service(database, provider)
+
+    result = await service.ingest(request_for(ingestion_community))
+
+    # Three source rows: one stored, one lost to the parser, one to a gate.
+    assert result.source_row_count == 3
+    assert result.parsed_count == result.upserted_count + result.quality_rejection_count == 2
+    assert (result.parse_rejection_count, result.quality_rejection_count) == (1, 1)
+    assert result.rejection_count == 2
+    assert [rejection.reason for rejection in result.quality_rejections] == [
+        RejectionReason.INVALID_AREA
+    ]
+    assert all(
+        not isinstance(rejection, TransactionRejection) for rejection in result.parse_rejections
+    )
 
 
 @pytest.mark.asyncio
@@ -176,8 +252,8 @@ async def test_duplicate_records_in_one_batch_are_rejected_once(
 
     result = await service.ingest(request_for(ingestion_community))
 
-    assert (result.fetched_count, result.upserted_count, result.rejected_count) == (2, 1, 1)
-    assert result.rejections[0].reason is RejectionReason.DUPLICATE_IN_BATCH
+    assert (result.parsed_count, result.upserted_count, result.quality_rejection_count) == (2, 1, 1)
+    assert result.quality_rejections[0].reason is RejectionReason.DUPLICATE_IN_BATCH
     assert len(repository.list_for_community(ingestion_community.community_id)) == 1
 
 
@@ -226,6 +302,20 @@ async def test_provider_failure_is_explicit_and_writes_nothing(
 
 
 @pytest.mark.asyncio
+async def test_empty_successful_fetch_is_not_a_failure(
+    database: DuckDBDatabase,
+    ingestion_community: Community,
+) -> None:
+    """A source with nothing to report is a valid result, not a silent error."""
+    service, _ = build_service(database, FakeTransactionProvider())
+
+    result = await service.ingest(request_for(ingestion_community))
+
+    assert (result.source_row_count, result.parsed_count, result.upserted_count) == (0, 0, 0)
+    assert result.rejection_count == 0
+
+
+@pytest.mark.asyncio
 async def test_open_date_range_accepts_every_dated_record(
     database: DuckDBDatabase,
     ingestion_community: Community,
@@ -239,7 +329,7 @@ async def test_open_date_range_accepts_every_dated_record(
 
     result = await service.ingest(TransactionIngestionRequest(community=ingestion_community))
 
-    assert (result.upserted_count, result.rejected_count) == (2, 0)
+    assert (result.upserted_count, result.rejection_count) == (2, 0)
 
 
 def test_ingestion_request_rejects_inverted_range(ingestion_community: Community) -> None:

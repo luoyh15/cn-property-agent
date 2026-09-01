@@ -1,4 +1,5 @@
 from .dto import RawTransactionRecord
+from .fetch import TransactionFetchResult
 from .parsing import (
     FieldParseError,
     ParseRejection,
@@ -26,6 +27,7 @@ __all__ = [
     "PlanningProvider",
     "RawTransactionRecord",
     "SourceRowRef",
+    "TransactionFetchResult",
     "TransactionProvider",
     "build_parse_result",
 ]
