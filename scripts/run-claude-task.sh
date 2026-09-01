@@ -13,6 +13,18 @@ run_id="${GITHUB_RUN_ID:-manual}"
 max_turns="${CLAUDE_MAX_TURNS:-40}"
 base_branch="${CLAUDE_BASE_BRANCH:-${GITHUB_REF_NAME:-main}}"
 
+# A self-hosted Actions shell is intentionally non-login/non-interactive and
+# may not inherit the Claude gateway, proxy, or provider variables used by the
+# developer's VS Code shell. Load only this explicit, user-owned file outside
+# the repository; never source .bashrc or repository-controlled environment.
+runner_env_file="${CLAUDE_RUNNER_ENV_FILE:-$HOME/.config/cn-property-agent/claude-runner.env}"
+if [[ -f "$runner_env_file" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$runner_env_file"
+  set +a
+fi
+
 for cmd in git gh jq uv claude; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "required command not found: $cmd" >&2
@@ -139,7 +151,7 @@ Do not change AGENTS.md, CLAUDE.md, CLAUDE.local.md, .claude/, .mcp.json, .vscod
 Do not access credentials or unrelated files outside the repository.
 Do not bypass authentication, CAPTCHA, anti-bot, access controls, or source terms.
 Prefer small, testable changes and add/update fixture-based tests when appropriate.
-The project environment is managed exclusively by uv. For checks use commands such as `uv run --no-sync ruff check ...` and `uv run --no-sync pytest ...`; do not use pip or create another virtual environment.
+The project environment is managed exclusively by uv. For checks use uv run --no-sync ruff check and uv run --no-sync pytest; do not use pip or create another virtual environment.
 If information is missing, make the safest reasonable implementation and document the assumption.
 
 Issue title:
