@@ -34,6 +34,8 @@ City profiles bind provider implementations and local market conventions to the 
 
 The core domain, storage contracts, analytics equations, service interfaces and MCP tool schemas must not depend on Shanghai-specific imports. Shanghai is the first integration test of the platform architecture.
 
+A profile carries provider *names*, never provider objects. `cn_property_agent.config` is the composition boundary that turns a name plus runtime settings into a concrete adapter — the only place allowed to know that Shanghai's `transactions: lianjia` means the recorded Lianjia provider. Deployment facts such as filesystem paths and credentials come from `ProviderSettings` (environment, `CN_PROPERTY_` prefix) rather than from a committed profile file. Composition fails with `ProviderConfigurationError` when a named provider cannot be constructed — an unknown name, or a Lianjia transaction provider without an existing recorded snapshot path — so a misconfiguration can never reach a service disguised as a source with no data. Layers below the boundary never import `config`.
+
 ### Storage
 
 Persists canonical data and provenance. DuckDB is the MVP query engine; Parquet is the durable analytical format.
