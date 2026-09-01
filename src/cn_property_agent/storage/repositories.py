@@ -47,7 +47,7 @@ class CommunityRepository:
                 built_year_max = excluded.built_year_max,
                 building_types = excluded.building_types,
                 source_refs = excluded.source_refs,
-                updated_at = current_timestamp
+                updated_at = now()
             """,
             [
                 community.community_id,
@@ -97,7 +97,7 @@ class CommunityRepository:
                ON CONFLICT(entity_type, provider, provider_entity_id) DO UPDATE SET
                    entity_id = excluded.entity_id,
                    provider_url = excluded.provider_url,
-                   last_seen_at = current_timestamp""",
+                   last_seen_at = now()""",
             [alias.entity_type, alias.entity_id, alias.provider, alias.provider_entity_id, alias.provider_url],
         )
 
