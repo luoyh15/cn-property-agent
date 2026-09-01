@@ -1,81 +1,45 @@
 # Local Claude Code Runner
 
-This repository can use GitHub Issues as a task queue for a **local self-hosted Claude Code worker**.
-
-The intended flow is:
+This repository uses GitHub Issues as a task queue for a **local self-hosted Claude Code worker**.
 
 ```text
 ChatGPT / repository owner
-        │
-        ▼
+        ↓
 owner creates [claude] GitHub Issue
-        │
-        ▼
-.github/workflows/claude-task.yml
-        │
-        ▼
+        ↓
+GitHub Actions
+        ↓
 self-hosted runner on local Linux / WSL
-        │
-        ▼
-scripts/run-claude-task.sh
-        │
-        ▼
-local `claude -p` process
-        │
-        ├── edits checkout
-        ├── runs allowed tests/lint
-        └── receives one repair attempt on failed checks
-        │
-        ▼
-runner commits + pushes branch
-        │
-        ▼
-PR (draft when checks still fail)
+        ↓
+uv sync
+        ↓
+local claude -p
+        ↓
+uv run ruff / pytest
+        ↓
+branch + PR
 ```
 
-The workflow deliberately invokes the locally installed `claude` executable instead of installing Claude Code inside the Action. This lets the runner reuse the development machine's Claude Code installation/authentication and local toolchain.
+The workflow invokes the locally installed `claude` executable so the runner can reuse the development machine's Claude Code authentication and local toolchain.
 
 ## Security model
 
-This repository is public, so the local runner must **not** execute arbitrary public issues or pull requests.
+This repository is public. The runner therefore does **not** execute arbitrary public issues or pull requests.
 
-The workflow has two independent gates:
+A task is accepted only when both conditions hold:
 
-1. the Issue author must equal `github.repository_owner`;
-2. the Issue title must start with `[claude]`.
+1. the Issue author equals `github.repository_owner`;
+2. the Issue title starts with `[claude]`.
 
-The runner re-fetches the Issue through the GitHub API and checks both conditions again before invoking Claude.
+The shell runner re-fetches the Issue and repeats these checks before invoking Claude.
 
-The automation also prevents task code from committing changes to the automation, editor auto-run, MCP, and agent-instruction trust boundary:
+Automated tasks cannot commit changes to the automation/agent trust boundary, including `AGENTS.md`, Claude project configuration, MCP configuration, GitHub workflows/actions, `.gitmodules`, VS Code auto-run tasks, or `scripts/run-claude-task.sh`.
 
-- `AGENTS.md`
-- `CLAUDE.md`
-- `CLAUDE.local.md`
-- `.claude/*`
-- `.mcp.json`
-- `.vscode/tasks.json`
-- `.gitmodules`
-- `.github/workflows/*`
-- `.github/actions/*`
-- `scripts/run-claude-task.sh`
+Automated Claude sessions also load only trusted user-level Claude settings, disable project auto-memory, use an empty strict MCP configuration, disable Claude web search/fetch, and allow only selected local commands. Git commit/push/PR creation is handled by the outer shell rather than Claude.
 
-These files should be changed manually.
+Even with these gates, a self-hosted coding runner is powerful because project tests execute locally. Prefer a dedicated OS user without unrelated credentials or sensitive files.
 
-Automated Claude sessions additionally use these isolation rules:
-
-- load only the trusted **user** Claude setting source (`--setting-sources user`), not repository/local project settings;
-- disable Claude project auto-memory for the runner process;
-- use an empty strict MCP configuration so repository/user MCP servers are not available to the task;
-- restrict built-in tools to read/edit/write/search plus Bash;
-- allow Bash without prompting only for selected git inspection, lint, and test commands;
-- disable Claude web search/fetch tools;
-- let the outer shell, not Claude, perform commit, push, and PR creation.
-
-This reduces the risk of repository content establishing persistent Claude hooks, project instructions, or MCP tools before the task prompt is processed.
-
-Even with these gates, a self-hosted coding runner is powerful: tests and generated code execute locally. Prefer a dedicated OS user with access only to development resources that the agent actually needs. Do not put unrelated SSH keys, company credentials, wallets, browser profiles, or personal secrets in that user's home directory.
-
-## 1. Prerequisites on the local machine
+## Prerequisites
 
 The runner host needs:
 
@@ -83,16 +47,16 @@ The runner host needs:
 - `git`
 - GitHub CLI `gh`
 - `jq`
+- `uv`
 - Claude Code CLI (`claude`)
-- Python tooling needed by this repository
 
-Check the basic tools from a repository checkout:
+From the repository root run:
 
 ```bash
 bash scripts/check-claude-runner.sh
 ```
 
-To additionally verify that Claude can run non-interactively under the current OS user:
+Then verify non-interactive Claude authentication:
 
 ```bash
 CLAUDE_RUNNER_SMOKE_TEST=1 bash scripts/check-claude-runner.sh
@@ -100,94 +64,93 @@ CLAUDE_RUNNER_SMOKE_TEST=1 bash scripts/check-claude-runner.sh
 
 The smoke test should print `RUNNER_OK`.
 
-## 2. Prepare a Python environment
+## Python environment: uv only
 
-The task script looks for a persistent environment at:
+The project does not maintain a separate runner virtualenv. `uv` owns the repository-local `.venv`.
 
-```text
-~/.venvs/cn-property-agent
-```
-
-Create it once from a normal clone of this repository:
+Initial setup:
 
 ```bash
-python3 -m venv ~/.venvs/cn-property-agent
-~/.venvs/cn-property-agent/bin/python -m pip install -U pip
-~/.venvs/cn-property-agent/bin/python -m pip install '.[dev]'
+uv sync
 ```
 
-The workflow checkout itself remains isolated under the GitHub runner work directory; the persistent environment only supplies Python and installed dependencies.
+Normal development commands:
 
-If you want another path, set `CLAUDE_RUNNER_VENV` in the runner process environment.
+```bash
+uv run pytest -q
+uv run ruff check .
+```
 
-Reinstall/update this environment whenever `pyproject.toml` dependencies change materially.
+Add dependencies with:
 
-## 3. Authenticate Claude Code for the runner user
+```bash
+uv add <package>
+uv add --dev <package>
+```
 
-The workflow does not require an Anthropic API secret in GitHub when the local Claude Code installation is already authenticated.
+Do not use `pip install -e '.[dev]'` or create a second project virtualenv. Development dependencies live in the standard `[dependency-groups].dev` section of `pyproject.toml`.
 
-The important point is that the **same OS user that runs the GitHub runner service** must be able to execute:
+Once `uv.lock` is committed, CI and the Claude runner automatically switch to locked/reproducible sync. Before the first lockfile is committed they perform a normal `uv sync`.
+
+## Authenticate Claude Code
+
+The **same OS user that runs the GitHub runner** must be able to execute:
 
 ```bash
 claude -p 'Reply exactly with RUNNER_OK' --max-turns 1
 ```
 
-If the runner uses a dedicated account, authenticate Claude Code while logged in as that account rather than relying on another user's home directory.
+If the runner uses a dedicated account, authenticate Claude Code as that account.
 
-User-level Claude settings remain available to the automated session. This is intentional so a trusted local gateway/model/auth configuration can continue to work. Repository project settings are excluded from automated sessions.
+## Install the GitHub self-hosted runner
 
-## 4. Install the GitHub self-hosted runner
-
-In GitHub open:
+Open:
 
 ```text
 Repository → Settings → Actions → Runners → New self-hosted runner
 ```
 
-Choose Linux and follow the generated download/configuration commands. GitHub supplies a short-lived registration token in those instructions.
-
-When configuring the runner, add the custom label:
+Choose Linux and follow GitHub's generated commands. During `config.sh`, add the custom label:
 
 ```text
 claude-code
 ```
 
-For example, the configuration command will conceptually look like:
+Conceptually:
 
 ```bash
 ./config.sh \
   --url https://github.com/luoyh15/cn-property-agent \
-  --token '<registration-token-from-github>' \
+  --token '<temporary-registration-token>' \
   --labels claude-code
 ```
 
 Do not commit or share the registration token.
 
-After a successful configuration, install/start it as a service if appropriate for the machine:
+For the first test, running the runner in the foreground is useful:
+
+```bash
+./run.sh
+```
+
+After confirming it can see `gh`, `uv`, and `claude`, it can be installed as a service:
 
 ```bash
 sudo ./svc.sh install
 sudo ./svc.sh start
+sudo ./svc.sh status
 ```
 
-Verify in GitHub that the runner is **Online** and has at least:
+The GitHub runner should show labels including:
 
 ```text
 self-hosted
 claude-code
 ```
 
-The workflow uses exactly these labels:
+## GitHub permissions
 
-```yaml
-runs-on: [self-hosted, claude-code]
-```
-
-## 5. GitHub CLI authentication
-
-Inside GitHub Actions, `GH_TOKEN` is supplied from the workflow's scoped `github.token`, so the runner does not need to store a long-lived GitHub PAT for normal issue/branch/PR operations.
-
-The workflow requests only:
+Inside Actions, `GH_TOKEN` comes from the workflow's scoped `github.token`. The workflow requests:
 
 ```text
 contents: write
@@ -195,86 +158,52 @@ issues: write
 pull-requests: write
 ```
 
-Repository/org policy can still restrict those permissions. If push or PR creation fails, check the repository Actions permissions first rather than adding a personal token.
+If push or PR creation fails, inspect repository Actions permissions before adding any personal token.
 
-## 6. Dispatching a task
+## Dispatching a task
 
-Create an Issue using the **Claude code task** template, or create an Issue manually with a title beginning:
-
-```text
-[claude] ...
-```
-
-Example:
+Create an owner-authored Issue whose title begins with `[claude]`, for example:
 
 ```text
 [claude] Implement transaction ingestion service
 ```
 
-The body should contain:
+The body should contain the objective, architectural constraints, acceptance criteria, and relevant context. ChatGPT can create these Issues through the connected GitHub account.
 
-- objective
-- architectural constraints
-- acceptance criteria
-- relevant context
-
-The Issue must be authored by the repository owner. An Issue from any other account is intentionally ignored even if it copies the title prefix.
-
-This makes ChatGPT → GitHub dispatch simple: ChatGPT only needs to create a well-specified owner Issue through the connected GitHub account.
-
-## 7. What happens during execution
+## Execution sequence
 
 For each trusted Issue the worker:
 
-1. revalidates Issue author/title;
-2. discovers the repository default branch;
-3. creates a branch named roughly `claude/issue-<n>-<run-id>` from the latest default branch;
-4. gives Claude the Issue plus explicit instructions to read `AGENTS.md`;
-5. lets Claude edit using the restricted local tool set;
-6. runs `ruff` and `pytest` when they are available;
-7. if checks fail, gives Claude the failure output and one repair pass;
-8. discards any attempted changes to protected automation/policy/agent configuration files;
-9. commits and pushes remaining changes;
+1. validates Issue author/title;
+2. creates a fresh branch from the default branch;
+3. runs `uv sync` (`--locked` when `uv.lock` is committed);
+4. gives Claude the Issue and repository instructions;
+5. lets Claude modify business code with restricted tools;
+6. runs `uv run --no-sync ruff check .` and `uv run --no-sync pytest -q`;
+7. gives Claude one repair attempt if checks fail;
+8. discards protected automation/configuration changes;
+9. pushes remaining changes;
 10. opens a normal PR if checks pass, otherwise a Draft PR;
-11. comments the resulting PR URL on the Issue.
+11. comments the PR URL on the Issue.
 
-## 8. Manual re-dispatch
-
-The workflow also supports `workflow_dispatch` with an Issue number. The shell-level trust checks still apply, so a manually supplied Issue must still be owner-authored and have the `[claude]` prefix.
-
-Use this if a GitHub event was missed or after repairing the local runner.
-
-## 9. Current limitations
-
-The first version intentionally does not:
-
-- execute public PR code automatically;
-- react to arbitrary Issue comments;
-- automatically continue an existing Claude session;
-- merge PRs;
-- modify its own workflow/security policy;
-- expose unrestricted web/network research tools to Claude.
-
-A later iteration can add an owner-only `/claude` PR follow-up path after the initial Issue → PR flow is stable.
-
-## 10. Troubleshooting
+## Troubleshooting
 
 ### Job stays queued
 
-The self-hosted runner is offline or does not have the `claude-code` label.
+The self-hosted runner is offline or lacks the `claude-code` label.
 
-### `claude: command not found`
+### `uv`, `gh`, or `claude` is not found in Actions
 
-The runner service has a different `PATH` from the interactive VS Code shell. Install Claude Code for the runner user or expose the installation path to the service environment.
+The runner service may have a different `PATH` from the interactive VS Code shell. Verify the service runs as the expected OS user and expose that user's binary paths to the service environment.
 
 ### Claude works interactively but fails in Actions
 
-Confirm the runner service uses the same OS account/home directory as the authenticated Claude installation. Run the smoke test as that exact user.
+Run the smoke test as the exact OS user running the GitHub runner service.
 
-### Tests are skipped
+### `uv sync` fails
 
-Create/update `~/.venvs/cn-property-agent` so that `pytest`, `ruff`, DuckDB, Pydantic and the project's other dependencies are available.
+Confirm the runner has network/package-index access and that the project metadata is valid. When `uv.lock` exists, also confirm it is consistent with `pyproject.toml`.
 
-### Push/PR fails with permission errors
+### Push/PR permission errors
 
-Check GitHub repository Actions settings and workflow token permissions. Avoid solving this by placing a broad personal access token on a public self-hosted runner unless there is a specific, reviewed need.
+Check GitHub repository Actions permissions. Avoid placing a broad personal access token on a public self-hosted runner unless there is a specific reviewed need.
