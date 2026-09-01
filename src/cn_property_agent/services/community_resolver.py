@@ -116,7 +116,8 @@ class RepositoryCommunityResolver:
             )
 
         best, second = scored[0], scored[1]
-        if best.confidence >= 0.9 and best.confidence - second.confidence >= 0.15:
+        epsilon = 1e-9
+        if best.confidence + epsilon >= 0.9 and best.confidence - second.confidence + epsilon >= 0.15:
             return CommunityResolution(
                 status=ResolutionStatus.RESOLVED,
                 community=best.community,
