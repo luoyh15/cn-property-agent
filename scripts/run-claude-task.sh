@@ -12,18 +12,12 @@ owner="${GITHUB_REPOSITORY_OWNER:?GITHUB_REPOSITORY_OWNER is required}"
 run_id="${GITHUB_RUN_ID:-manual}"
 max_turns="${CLAUDE_MAX_TURNS:-40}"
 
-for cmd in git gh jq claude; do
+for cmd in git gh jq uv claude; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "required command not found: $cmd" >&2
     exit 127
   fi
 done
-
-# Optional persistent Python environment owned by the runner user.
-runner_venv="${CLAUDE_RUNNER_VENV:-$HOME/.venvs/cn-property-agent}"
-if [[ -x "$runner_venv/bin/python" ]]; then
-  export PATH="$runner_venv/bin:$PATH"
-fi
 
 # Keep automated sessions isolated from repository-supplied Claude settings,
 # persistent project memory, and MCP servers. User-level settings remain
@@ -67,6 +61,19 @@ git checkout -B "$branch" "origin/$base_branch"
 git config user.name "claude-code-runner"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+# The repository-local .venv is fully managed by uv. Once uv.lock is committed,
+# --locked makes every task reproduce the exact dependency graph. Before the
+# first lockfile is committed, sync normally but do not let that incidental
+# generated lockfile leak into an unrelated task PR.
+lock_tracked=false
+if git ls-files --error-unmatch uv.lock >/dev/null 2>&1; then
+  lock_tracked=true
+  uv sync --locked
+else
+  uv sync
+  rm -f uv.lock
+fi
+
 mkdir -p .git/claude-task
 prompt_file=".git/claude-task/issue-${issue_number}.md"
 claude_log=".git/claude-task/claude-${issue_number}.log"
@@ -81,7 +88,8 @@ Do not change AGENTS.md, CLAUDE.md, CLAUDE.local.md, .claude/, .mcp.json, .vscod
 Do not access credentials or unrelated files outside the repository.
 Do not bypass authentication, CAPTCHA, anti-bot, access controls, or source terms.
 Prefer small, testable changes and add/update fixture-based tests when appropriate.
-Run relevant tests using only the allowed commands. If information is missing, make the safest reasonable implementation and document the assumption.
+The project environment is managed exclusively by uv. For checks use commands such as `uv run --no-sync ruff check ...` and `uv run --no-sync pytest ...`; do not use pip or create another virtual environment.
+If information is missing, make the safest reasonable implementation and document the assumption.
 
 Issue title:
 ${title}
@@ -99,10 +107,8 @@ allowed_tools=(
   "Bash(git status:*)"
   "Bash(git diff:*)"
   "Bash(git log:*)"
-  "Bash(pytest:*)"
-  "Bash(python -m pytest:*)"
-  "Bash(ruff:*)"
-  "Bash(python -m ruff:*)"
+  "Bash(uv run --no-sync pytest:*)"
+  "Bash(uv run --no-sync ruff:*)"
   "Bash(ls:*)"
 )
 
@@ -124,25 +130,11 @@ run_checks() {
   local status=0
   : >"$check_log"
 
-  if command -v ruff >/dev/null 2>&1; then
-    echo '== ruff check .' | tee -a "$check_log"
-    ruff check . 2>&1 | tee -a "$check_log" || status=1
-  elif python -c 'import ruff' >/dev/null 2>&1; then
-    echo '== python -m ruff check .' | tee -a "$check_log"
-    python -m ruff check . 2>&1 | tee -a "$check_log" || status=1
-  else
-    echo '== ruff unavailable; skipped' | tee -a "$check_log"
-  fi
+  echo '== uv run --no-sync ruff check .' | tee -a "$check_log"
+  uv run --no-sync ruff check . 2>&1 | tee -a "$check_log" || status=1
 
-  if command -v pytest >/dev/null 2>&1; then
-    echo '== pytest -q' | tee -a "$check_log"
-    pytest -q 2>&1 | tee -a "$check_log" || status=1
-  elif python -c 'import pytest' >/dev/null 2>&1; then
-    echo '== python -m pytest -q' | tee -a "$check_log"
-    python -m pytest -q 2>&1 | tee -a "$check_log" || status=1
-  else
-    echo '== pytest unavailable; skipped' | tee -a "$check_log"
-  fi
+  echo '== uv run --no-sync pytest -q' | tee -a "$check_log"
+  uv run --no-sync pytest -q 2>&1 | tee -a "$check_log" || status=1
 
   return "$status"
 }
@@ -153,7 +145,7 @@ checks_passed=true
 if ! run_checks; then
   checks_passed=false
   repair_prompt="$(cat <<EOF
-The implementation for GitHub Issue #${issue_number} has failing checks. Inspect the current working tree, fix the failures without changing protected automation/policy files, and rerun the relevant checks.
+The implementation for GitHub Issue #${issue_number} has failing checks. Inspect the current working tree, fix the failures without changing protected automation/policy files, and rerun the relevant uv-based checks.
 
 Check output:
 $(tail -n 250 "$check_log")
@@ -181,6 +173,13 @@ while IFS= read -r path; do
       ;;
   esac
 done < <(git status --porcelain=v1 | sed -E 's/^.. //' | sed -E 's/^.* -> //')
+
+# A pre-lockfile task must not accidentally introduce a lockfile generated only
+# as a side effect of environment setup. Dependency changes should deliberately
+# include/update uv.lock in a dedicated reviewed change.
+if [[ "$lock_tracked" != "true" && -f uv.lock ]]; then
+  rm -f uv.lock
+fi
 
 if [[ -z "$(git status --porcelain=v1)" ]]; then
   msg="Claude completed Issue #${issue_number} but produced no committable changes."
