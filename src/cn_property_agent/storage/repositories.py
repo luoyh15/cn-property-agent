@@ -29,9 +29,11 @@ class CommunityRepository:
     def upsert(self, community: Community) -> None:
         self.connection.execute(
             """
-            INSERT INTO community VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp
-            )
+            INSERT INTO community (
+                community_id, city_code, canonical_name, normalized_name,
+                district, subdistrict, address, latitude, longitude,
+                built_year_min, built_year_max, building_types, source_refs
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(community_id) DO UPDATE SET
                 city_code = excluded.city_code,
                 canonical_name = excluded.canonical_name,
