@@ -1,0 +1,44 @@
+name: Claude Code Task
+
+on:
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Owner-authored [claude] issue number"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: claude-task-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.issue.user.login == github.repository_owner &&
+        startsWith(github.event.issue.title, '[claude]')
+      )
+    runs-on: [self-hosted, claude-code]
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+      CLAUDE_MAX_TURNS: "40"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run trusted Claude task
+        shell: bash
+        run: bash scripts/run-claude-task.sh "$ISSUE_NUMBER"
