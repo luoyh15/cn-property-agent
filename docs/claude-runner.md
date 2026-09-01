@@ -46,19 +46,34 @@ The workflow has two independent gates:
 
 The runner re-fetches the Issue through the GitHub API and checks both conditions again before invoking Claude.
 
-The automation also prevents task code from committing changes to:
+The automation also prevents task code from committing changes to the automation, editor auto-run, MCP, and agent-instruction trust boundary:
 
 - `AGENTS.md`
+- `CLAUDE.md`
+- `CLAUDE.local.md`
+- `.claude/*`
+- `.mcp.json`
+- `.vscode/tasks.json`
 - `.gitmodules`
 - `.github/workflows/*`
 - `.github/actions/*`
 - `scripts/run-claude-task.sh`
 
-These files are treated as the automation/policy trust boundary and should be changed manually.
+These files should be changed manually.
 
-Claude is started with an explicit allow-list of editing/read tools and selected local commands. Web search/fetch tools are disabled for automated tasks. The outer shell, not Claude, performs commit, push and PR creation.
+Automated Claude sessions additionally use these isolation rules:
 
-Even with these gates, a self-hosted runner is powerful. Prefer a dedicated OS user with access only to development resources that the agent actually needs. Do not put unrelated SSH keys, company credentials, wallets, browser profiles, or personal secrets in that user's home directory.
+- load only the trusted **user** Claude setting source (`--setting-sources user`), not repository/local project settings;
+- disable Claude project auto-memory for the runner process;
+- use an empty strict MCP configuration so repository/user MCP servers are not available to the task;
+- restrict built-in tools to read/edit/write/search plus Bash;
+- allow Bash without prompting only for selected git inspection, lint, and test commands;
+- disable Claude web search/fetch tools;
+- let the outer shell, not Claude, perform commit, push, and PR creation.
+
+This reduces the risk of repository content establishing persistent Claude hooks, project instructions, or MCP tools before the task prompt is processed.
+
+Even with these gates, a self-hosted coding runner is powerful: tests and generated code execute locally. Prefer a dedicated OS user with access only to development resources that the agent actually needs. Do not put unrelated SSH keys, company credentials, wallets, browser profiles, or personal secrets in that user's home directory.
 
 ## 1. Prerequisites on the local machine
 
@@ -118,6 +133,8 @@ claude -p 'Reply exactly with RUNNER_OK' --max-turns 1
 ```
 
 If the runner uses a dedicated account, authenticate Claude Code while logged in as that account rather than relying on another user's home directory.
+
+User-level Claude settings remain available to the automated session. This is intentional so a trusted local gateway/model/auth configuration can continue to work. Repository project settings are excluded from automated sessions.
 
 ## 4. Install the GitHub self-hosted runner
 
@@ -212,11 +229,11 @@ For each trusted Issue the worker:
 1. revalidates Issue author/title;
 2. discovers the repository default branch;
 3. creates a branch named roughly `claude/issue-<n>-<run-id>` from the latest default branch;
-4. gives Claude the Issue plus `AGENTS.md` instructions;
-5. lets Claude edit using the allowed local tool set;
+4. gives Claude the Issue plus explicit instructions to read `AGENTS.md`;
+5. lets Claude edit using the restricted local tool set;
 6. runs `ruff` and `pytest` when they are available;
 7. if checks fail, gives Claude the failure output and one repair pass;
-8. discards any attempted changes to protected automation/policy files;
+8. discards any attempted changes to protected automation/policy/agent configuration files;
 9. commits and pushes remaining changes;
 10. opens a normal PR if checks pass, otherwise a Draft PR;
 11. comments the resulting PR URL on the Issue.
