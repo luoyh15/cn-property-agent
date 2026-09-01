@@ -17,6 +17,7 @@ from .transaction_normalization import (
     RejectionReason,
     TransactionRejection,
     normalize_transaction,
+    validate_unit_price_tolerance,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class TransactionIngestionService:
     ) -> None:
         self.provider = provider
         self.repository = repository
-        self.unit_price_tolerance = unit_price_tolerance
+        self.unit_price_tolerance = validate_unit_price_tolerance(unit_price_tolerance)
 
     async def ingest(self, request: TransactionIngestionRequest) -> TransactionIngestionResult:
         community = request.community

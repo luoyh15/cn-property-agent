@@ -1,4 +1,12 @@
 from .dto import RawTransactionRecord
+from .parsing import (
+    FieldParseError,
+    ParseRejection,
+    ParseRejectionReason,
+    ParseResult,
+    SourceRowRef,
+    build_parse_result,
+)
 from .protocols import (
     GeoProvider,
     ListingProvider,
@@ -8,10 +16,16 @@ from .protocols import (
 )
 
 __all__ = [
+    "FieldParseError",
     "GeoProvider",
     "ListingProvider",
     "MarketProvider",
+    "ParseRejection",
+    "ParseRejectionReason",
+    "ParseResult",
     "PlanningProvider",
     "RawTransactionRecord",
+    "SourceRowRef",
     "TransactionProvider",
+    "build_parse_result",
 ]

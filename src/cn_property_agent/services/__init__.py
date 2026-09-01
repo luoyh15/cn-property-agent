@@ -14,11 +14,13 @@ from .transaction_ingestion import (
 )
 from .transaction_normalization import (
     DEFAULT_UNIT_PRICE_TOLERANCE,
+    MAX_UNIT_PRICE_TOLERANCE,
     NormalizedTransaction,
     RejectionReason,
     TransactionRejection,
     build_transaction_id,
     normalize_transaction,
+    validate_unit_price_tolerance,
 )
 
 __all__ = [
@@ -27,6 +29,7 @@ __all__ = [
     "CommunityResolutionRequest",
     "CommunityResolver",
     "DEFAULT_UNIT_PRICE_TOLERANCE",
+    "MAX_UNIT_PRICE_TOLERANCE",
     "NormalizedTransaction",
     "ProviderFetchError",
     "RejectionReason",
@@ -39,4 +42,5 @@ __all__ = [
     "TransactionRejection",
     "build_transaction_id",
     "normalize_transaction",
+    "validate_unit_price_tolerance",
 ]

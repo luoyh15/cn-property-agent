@@ -1,0 +1,114 @@
+{
+  "_fixture": "SYNTHETIC representative Lianjia-style transaction rows. Hand-authored for tests: field names and unit conventions follow patterns commonly seen in historical/open-source Lianjia transaction datasets. This is NOT a snapshot of any live sh.lianjia.com page, and the communities, prices and 链家编号 values are invented.",
+  "_units": "建筑面积 in 平米; 挂牌价格（万）and 总价 in 万元; 单价 in 元/㎡; 成交周期（天）in days.",
+  "community_id": "cm-sh-pd-002",
+  "context": {
+    "collected_at": "2026-08-01T00:00:00Z",
+    "source_url": "https://example.invalid/lianjia/chengjiao/cm-sh-pd-002",
+    "raw_payload_ref": "fixture://lianjia/chengjiao/cm-sh-pd-002/page-1"
+  },
+  "rows": {
+    "valid_full": {
+      "链家编号": "SH1234567890",
+      "成交日期": "2026-07-15",
+      "建筑面积": "120.5平米",
+      "房屋户型": "3室2厅",
+      "房屋朝向": "南",
+      "所在楼层": "中楼层(共18层)",
+      "建成年代": "2008年建",
+      "挂牌价格（万）": "1200",
+      "总价": "1140",
+      "单价": "94606",
+      "成交周期（天）": "41",
+      "source_url": "https://example.invalid/lianjia/chengjiao/SH1234567890.html",
+      "raw_payload_ref": "fixture://lianjia/chengjiao/SH1234567890"
+    },
+    "valid_title_fallback": {
+      "链家编号": "SH1234567891",
+      "标题": "仁恒河滨城 2室1厅 88平米",
+      "成交日期": "2026.06.02",
+      "建筑面积": "88㎡",
+      "房屋朝向": "东南",
+      "所在楼层": "高楼层(共32层)",
+      "建成年代": "2006",
+      "挂牌价格（万）": "830",
+      "总价": "792",
+      "单价": "90000元/平米",
+      "成交周期（天）": "63天"
+    },
+    "valid_fullwidth_digits": {
+      "链家编号": "ＳＨ１２３４５６７８９２",
+      "成交日期": "2026年5月20日",
+      "建筑面积": "１００平米",
+      "房屋户型": "2室2厅",
+      "房屋朝向": "北",
+      "所在楼层": "低楼层(共6层)",
+      "建成年代": "暂无数据",
+      "总价": "９００",
+      "单价": "90,000",
+      "成交周期（天）": "12"
+    },
+    "valid_unknown_floor": {
+      "链家编号": "SH1234567893",
+      "成交日期": "2026/05/05",
+      "建筑面积": "75",
+      "房屋户型": "2室1厅",
+      "所在楼层": "顶层(共6层)",
+      "总价": "600",
+      "单价": "80000"
+    },
+    "malformed_area": {
+      "链家编号": "SH1234567894",
+      "成交日期": "2026-07-08",
+      "建筑面积": "约一百二十平米",
+      "房屋户型": "3室2厅",
+      "总价": "1100",
+      "单价": "91666"
+    },
+    "malformed_deal_date": {
+      "链家编号": "SH1234567895",
+      "成交日期": "2026-07",
+      "建筑面积": "90平米",
+      "总价": "810",
+      "单价": "90000"
+    },
+    "impossible_deal_date": {
+      "链家编号": "SH1234567896",
+      "成交日期": "2026-02-30",
+      "建筑面积": "90平米",
+      "总价": "810",
+      "单价": "90000"
+    },
+    "malformed_total_price": {
+      "链家编号": "SH1234567897",
+      "成交日期": "2026-07-09",
+      "建筑面积": "90平米",
+      "总价": "面议",
+      "单价": "90000"
+    },
+    "missing_source_id": {
+      "成交日期": "2026-07-10",
+      "建筑面积": "90平米",
+      "房屋户型": "3室1厅",
+      "总价": "810",
+      "单价": "90000"
+    },
+    "blank_source_id": {
+      "链家编号": "暂无数据",
+      "成交日期": "2026-07-11",
+      "建筑面积": "90平米",
+      "总价": "810",
+      "单价": "90000"
+    },
+    "quality_gate_negative_area": {
+      "链家编号": "SH1234567898",
+      "成交日期": "2026-07-12",
+      "建筑面积": "-90平米",
+      "总价": "810",
+      "单价": "90000"
+    }
+  },
+  "batches": {
+    "one_valid_one_malformed": ["valid_full", "malformed_area"]
+  }
+}
