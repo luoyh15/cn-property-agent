@@ -41,4 +41,25 @@ jobs:
 
       - name: Run trusted Claude task
         shell: bash
-        run: bash scripts/run-claude-task.sh "$ISSUE_NUMBER"
+        run: |
+          set +e
+          bash scripts/run-claude-task.sh "$ISSUE_NUMBER"
+          status=$?
+          set -e
+
+          if [[ "$status" -eq 0 ]]; then
+            exit 0
+          fi
+
+          # The runner creates a unique branch per Actions run and sets its
+          # upstream only after a successful push. If a later step such as
+          # PR creation is blocked by repository policy, preserve the useful
+          # result instead of reporting the entire Claude coding task as failed.
+          branch="claude/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "${branch}@{upstream}" 2>/dev/null)" \
+            && [[ "$upstream" == "origin/$branch" ]]; then
+            echo "::warning::Claude completed and pushed ${branch}, but post-push automation failed. The branch is recoverable and can be opened as a PR manually or by ChatGPT."
+            exit 0
+          fi
+
+          exit "$status"
