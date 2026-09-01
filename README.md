@@ -53,6 +53,27 @@ The system is **not primarily a house-price prediction model**. It is a research
 
 See [AGENTS.md](AGENTS.md) for the implementation contract and [docs/architecture.md](docs/architecture.md) for the detailed design.
 
+## Development with uv
+
+`uv` is the only supported Python environment/dependency workflow for local development, CI, and the self-hosted Claude runner.
+
+```bash
+uv sync
+uv run ruff check .
+uv run pytest -q
+```
+
+Add dependencies with:
+
+```bash
+uv add <package>
+uv add --dev <package>
+```
+
+Development dependencies are declared in `[dependency-groups].dev`. Do not create a separate project venv or install the project with `pip install -e '.[dev]'`.
+
+Once `uv.lock` is committed, CI and automated coding tasks use locked sync automatically.
+
 ## Development automation
 
 The repository supports an owner-only GitHub Issue → local Claude Code → Pull Request workflow using a self-hosted runner.
@@ -64,9 +85,11 @@ GitHub Actions
         ↓
 local self-hosted runner
         ↓
+uv sync
+        ↓
 local Claude Code CLI
         ↓
-branch + tests + PR
+uv-based checks + branch + PR
 ```
 
 Because this is a public repository, the runner revalidates that executable tasks are authored by the repository owner and use the `[claude]` title prefix. Automated tasks cannot modify the runner/security trust-boundary files.
@@ -99,6 +122,7 @@ Core code must never contain logic such as `if city == "shanghai"` for analytica
 ## Suggested stack
 
 - Python 3.12+
+- uv
 - Pydantic
 - DuckDB
 - Parquet
