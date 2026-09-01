@@ -225,6 +225,10 @@ def test_service_is_source_independent() -> None:
             imported.add(node.module)
 
     internal = {name for name in imported if name.startswith("cn_property_agent")}
-    assert internal == {"cn_property_agent.domain", "cn_property_agent.storage.repositories"}
+    assert internal == {
+        "cn_property_agent.analytics",
+        "cn_property_agent.domain",
+        "cn_property_agent.storage.repositories",
+    }
     forbidden = ("lianjia", "beike", "cn_property_agent.config", "cn_property_agent.providers")
     assert not any(token in source.lower() for token in forbidden)

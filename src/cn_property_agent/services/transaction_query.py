@@ -4,6 +4,10 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from cn_property_agent.analytics import (
+    CommunityTransactionMetrics,
+    compute_community_transaction_metrics,
+)
 from cn_property_agent.domain import Transaction
 from cn_property_agent.storage.repositories import TransactionRepository
 
@@ -65,4 +69,17 @@ class TransactionQueryService:
                 start_date=query.start_date,
                 end_date=query.end_date,
             )
+        )
+
+    def get_transaction_metrics(self, query: TransactionQuery) -> CommunityTransactionMetrics:
+        """Baseline deterministic metrics over the same window as a read.
+
+        A convenience composition only: the metrics are computed from the
+        records :meth:`get_transactions` would return, over exactly the queried
+        window, and the underlying records stay available with their
+        provenance.
+        """
+        return compute_community_transaction_metrics(
+            self.get_transactions(query),
+            community_id=query.community_id,
         )

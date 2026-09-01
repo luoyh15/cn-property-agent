@@ -52,6 +52,8 @@ Ingestion keeps both failure vocabularies visible instead of collapsing them. `T
 
 Pure/deterministic computations over normalized records. No network calls and no free-form LLM calculations.
 
+Baseline transaction metrics are medians over a community's canonical records, computed without a clock and independently of input order. Evidence and summary stay distinguishable: `sample_count` and `latest_deal_date` describe the records themselves, while each median is a `MedianMetric` carrying its own `usable_count` — the records that actually hold the underlying field — and a `value` that is `None` below `MINIMUM_SAMPLE_COUNT`. A missing optional field therefore never becomes an imputed number and "too little evidence" never reads as zero. Analytics summarizes canonical values only; the query path continues to return whole records with their provenance, and metrics list the `transaction_ids` they were computed from.
+
 ### Agent
 
 Chooses which service tools to call, determines whether evidence is sufficient, and writes an evidence-linked report. It must distinguish fact, calculation and interpretation.
