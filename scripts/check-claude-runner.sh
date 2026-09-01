@@ -2,7 +2,7 @@
 set -euo pipefail
 
 missing=0
-for cmd in git gh jq claude; do
+for cmd in git gh jq uv claude; do
   if command -v "$cmd" >/dev/null 2>&1; then
     printf '%-8s %s\n' "$cmd" "$(command -v "$cmd")"
   else
@@ -19,15 +19,19 @@ echo
 git --version
 gh --version | head -n 1
 jq --version
+uv --version
 claude --version
 
-runner_venv="${CLAUDE_RUNNER_VENV:-$HOME/.venvs/cn-property-agent}"
-if [[ -x "$runner_venv/bin/python" ]]; then
-  echo "python runner venv: $runner_venv"
-  "$runner_venv/bin/python" --version
+echo
+if [[ -f pyproject.toml ]]; then
+  echo "uv project detected: $(pwd)"
+  if [[ -f uv.lock ]]; then
+    echo "uv lockfile: present"
+  else
+    echo "uv lockfile: not yet committed"
+  fi
 else
-  echo "python runner venv not found at: $runner_venv"
-  echo "This is optional, but pytest/ruff dependencies should be available to the runner."
+  echo "warning: pyproject.toml not found; run this script from the repository root" >&2
 fi
 
 if [[ "${CLAUDE_RUNNER_SMOKE_TEST:-0}" == "1" ]]; then
