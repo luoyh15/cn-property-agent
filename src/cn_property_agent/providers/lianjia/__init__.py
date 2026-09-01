@@ -5,6 +5,12 @@ lives here. Core services stay source-independent and must not import this
 package.
 """
 
+from .recorded_transactions import (
+    LianjiaSnapshotError,
+    LianjiaTransactionSnapshot,
+    RecordedLianjiaTransactionProvider,
+    load_transaction_snapshot,
+)
 from .transaction_parser import (
     LIANJIA_SOURCE,
     LIANJIA_TRANSACTION_PARSER_VERSION,
@@ -17,6 +23,10 @@ __all__ = [
     "LIANJIA_SOURCE",
     "LIANJIA_TRANSACTION_PARSER_VERSION",
     "LianjiaParseContext",
+    "LianjiaSnapshotError",
+    "LianjiaTransactionSnapshot",
+    "RecordedLianjiaTransactionProvider",
+    "load_transaction_snapshot",
     "parse_transaction_row",
     "parse_transaction_rows",
 ]
