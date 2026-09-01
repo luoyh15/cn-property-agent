@@ -1,0 +1,22 @@
+city_code: shanghai
+country_code: CN
+display_name: 上海
+timezone: Asia/Shanghai
+currency: CNY
+
+providers:
+  transactions: lianjia
+  listings: lianjia
+  geospatial: amap
+  market: shanghai_official
+  planning: shanghai_planning
+  research: web
+
+benchmarks:
+  primary_level: district
+  secondary_level: subdistrict
+
+units:
+  area: sqm
+  distance: m
+  price: cny
