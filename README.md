@@ -53,6 +53,26 @@ The system is **not primarily a house-price prediction model**. It is a research
 
 See [AGENTS.md](AGENTS.md) for the implementation contract and [docs/architecture.md](docs/architecture.md) for the detailed design.
 
+## Development automation
+
+The repository supports an owner-only GitHub Issue → local Claude Code → Pull Request workflow using a self-hosted runner.
+
+```text
+ChatGPT creates owner [claude] Issue
+        ↓
+GitHub Actions
+        ↓
+local self-hosted runner
+        ↓
+local Claude Code CLI
+        ↓
+branch + tests + PR
+```
+
+Because this is a public repository, the runner revalidates that executable tasks are authored by the repository owner and use the `[claude]` title prefix. Automated tasks cannot modify the runner/security trust-boundary files.
+
+See [docs/claude-runner.md](docs/claude-runner.md) for installation, security, and dispatch instructions.
+
 ## City profile concept
 
 A city profile should define only city-specific concerns, for example:
