@@ -1,0 +1,66 @@
+{
+  "communities": [
+    {
+      "community_id": "cm-sh-pd-001",
+      "city_code": "shanghai",
+      "canonical_name": "阳光花园",
+      "district": "浦东新区",
+      "subdistrict": "联洋",
+      "address": "示例路100号",
+      "latitude": 31.2261,
+      "longitude": 121.5582,
+      "built_year_min": 2002,
+      "built_year_max": 2005,
+      "building_types": ["high_rise"],
+      "source_refs": [{"provider": "fixture", "provider_entity_id": "pd-001", "provider_url": null}]
+    },
+    {
+      "community_id": "cm-sh-mh-001",
+      "city_code": "shanghai",
+      "canonical_name": "阳光花园",
+      "district": "闵行区",
+      "subdistrict": "莘庄",
+      "address": "样例路200号",
+      "latitude": 31.111,
+      "longitude": 121.376,
+      "built_year_min": 1999,
+      "built_year_max": 2001,
+      "building_types": ["mid_rise"],
+      "source_refs": [{"provider": "fixture", "provider_entity_id": "mh-001", "provider_url": null}]
+    },
+    {
+      "community_id": "cm-sh-pd-002",
+      "city_code": "shanghai",
+      "canonical_name": "仁恒河滨城",
+      "district": "浦东新区",
+      "subdistrict": "联洋",
+      "address": "丁香路示例号",
+      "latitude": 31.232,
+      "longitude": 121.561,
+      "built_year_min": 2003,
+      "built_year_max": 2010,
+      "building_types": ["high_rise"],
+      "source_refs": [{"provider": "fixture", "provider_entity_id": "pd-002", "provider_url": null}]
+    }
+  ],
+  "transaction": {
+    "transaction_id": "tx-fixture-001",
+    "community_id": "cm-sh-pd-002",
+    "source": "fixture",
+    "source_transaction_id": "sold-001",
+    "source_url": "https://example.invalid/tx/1",
+    "deal_date": "2026-07-15",
+    "area_sqm": 120.5,
+    "layout": "3室2厅",
+    "floor_bucket": "mid",
+    "orientation": "南",
+    "built_year": 2008,
+    "initial_listing_price_cny": 12000000,
+    "deal_price_cny": 11400000,
+    "unit_price_cny_sqm": 94605.81,
+    "days_on_market": 41,
+    "raw_payload_ref": "fixture://transaction/1",
+    "collected_at": "2026-08-01T00:00:00Z",
+    "parser_version": "fixture-v1"
+  }
+}
