@@ -1,7 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import math
 import unicodedata
+
+
+def stable_id(prefix: str, *parts: str) -> str:
+    """Deterministic internal identifier derived from provider-native parts.
+
+    Internal IDs stay independent from provider ID formats while remaining
+    reproducible, which is what makes repeated ingestion idempotent.
+    """
+    digest = hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+    return f"{prefix}-{digest[:32]}"
 
 
 def normalize_text(value: str | None) -> str | None:

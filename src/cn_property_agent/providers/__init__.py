@@ -1,3 +1,4 @@
+from .dto import RawTransactionRecord
 from .protocols import (
     GeoProvider,
     ListingProvider,
@@ -11,5 +12,6 @@ __all__ = [
     "ListingProvider",
     "MarketProvider",
     "PlanningProvider",
+    "RawTransactionRecord",
     "TransactionProvider",
 ]
