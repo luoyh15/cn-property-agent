@@ -6,12 +6,37 @@ from .community_resolver import (
     RepositoryCommunityResolver,
     ResolutionStatus,
 )
+from .errors import ProviderFetchError, ServiceError
+from .transaction_ingestion import (
+    TransactionIngestionRequest,
+    TransactionIngestionResult,
+    TransactionIngestionService,
+)
+from .transaction_normalization import (
+    DEFAULT_UNIT_PRICE_TOLERANCE,
+    NormalizedTransaction,
+    RejectionReason,
+    TransactionRejection,
+    build_transaction_id,
+    normalize_transaction,
+)
 
 __all__ = [
     "CommunityResolution",
     "CommunityResolutionCandidate",
     "CommunityResolutionRequest",
     "CommunityResolver",
+    "DEFAULT_UNIT_PRICE_TOLERANCE",
+    "NormalizedTransaction",
+    "ProviderFetchError",
+    "RejectionReason",
     "RepositoryCommunityResolver",
     "ResolutionStatus",
+    "ServiceError",
+    "TransactionIngestionRequest",
+    "TransactionIngestionResult",
+    "TransactionIngestionService",
+    "TransactionRejection",
+    "build_transaction_id",
+    "normalize_transaction",
 ]

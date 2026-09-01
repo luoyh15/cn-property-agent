@@ -12,19 +12,27 @@ from cn_property_agent.domain import (
     MarketObservation,
     POI,
     TransportMode,
-    Transaction,
 )
+
+from .dto import RawTransactionRecord
 
 
 @runtime_checkable
 class TransactionProvider(Protocol):
+    """Fetch observed transactions for an already resolved community.
+
+    Providers return source-independent DTOs; the ingestion service owns
+    normalization into canonical :class:`~cn_property_agent.domain.Transaction`
+    records because internal identity is not knowable by an adapter.
+    """
+
     async def fetch_transactions(
         self,
         community: Community,
         *,
         start_date: date | None = None,
         end_date: date | None = None,
-    ) -> Sequence[Transaction]: ...
+    ) -> Sequence[RawTransactionRecord]: ...
 
 
 @runtime_checkable
