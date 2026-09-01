@@ -7,6 +7,7 @@ import pytest
 
 from cn_property_agent.domain import Community, Transaction
 from cn_property_agent.providers import RawTransactionRecord
+from cn_property_agent.providers.lianjia import LianjiaParseContext
 
 
 def _load_fixture(name: str) -> dict:
@@ -42,3 +43,24 @@ def provider_records() -> dict[str, RawTransactionRecord]:
 def ingestion_community(communities: list[Community]) -> Community:
     fixture = _load_fixture("provider_transactions.json")
     return next(item for item in communities if item.community_id == fixture["community_id"])
+
+
+@pytest.fixture
+def lianjia_fixture() -> dict:
+    return _load_fixture("lianjia_transactions.json")
+
+
+@pytest.fixture
+def lianjia_rows(lianjia_fixture: dict) -> dict[str, dict]:
+    return lianjia_fixture["rows"]
+
+
+@pytest.fixture
+def lianjia_context(lianjia_fixture: dict) -> LianjiaParseContext:
+    return LianjiaParseContext.model_validate(lianjia_fixture["context"])
+
+
+@pytest.fixture
+def lianjia_community(communities: list[Community], lianjia_fixture: dict) -> Community:
+    community_id = lianjia_fixture["community_id"]
+    return next(item for item in communities if item.community_id == community_id)

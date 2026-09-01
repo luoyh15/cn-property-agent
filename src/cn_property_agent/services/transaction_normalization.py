@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, date, timedelta
 from enum import StrEnum
 
@@ -14,6 +15,23 @@ DEFAULT_UNIT_PRICE_TOLERANCE = 0.02
 
 FUTURE_DEAL_DATE_GRACE = timedelta(days=1)
 """Local market dates may run ahead of a UTC collection timestamp by one day."""
+
+MAX_UNIT_PRICE_TOLERANCE = 1.0
+"""Above 100% relative deviation the consistency gate would never reject."""
+
+
+def validate_unit_price_tolerance(value: float) -> float:
+    """Reject tolerances that would silently disable the consistency gate."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"unit_price_tolerance must be a number, got {value!r}")
+    tolerance = float(value)
+    if not math.isfinite(tolerance):
+        raise ValueError(f"unit_price_tolerance must be finite, got {value!r}")
+    if not 0 <= tolerance <= MAX_UNIT_PRICE_TOLERANCE:
+        raise ValueError(
+            f"unit_price_tolerance must be between 0 and {MAX_UNIT_PRICE_TOLERANCE}, got {value!r}"
+        )
+    return tolerance
 
 
 class RejectionReason(StrEnum):
@@ -66,6 +84,8 @@ def normalize_transaction(
     Pure and deterministic: no clock, no I/O. The collection timestamp carried
     by the record is the reference point for "is this date plausible".
     """
+    tolerance = validate_unit_price_tolerance(unit_price_tolerance)
+
     if not record.source_transaction_id:
         return _reject(
             record,
@@ -138,12 +158,12 @@ def normalize_transaction(
         )
     else:
         deviation = abs(unit_price * record.area_sqm - record.deal_price_cny) / record.deal_price_cny
-        if deviation > unit_price_tolerance:
+        if deviation > tolerance:
             return _reject(
                 record,
                 RejectionReason.INCONSISTENT_UNIT_PRICE,
                 f"unit_price_cny_sqm * area_sqm deviates from deal_price_cny by {deviation:.2%}"
-                f" (tolerance {unit_price_tolerance:.2%})",
+                f" (tolerance {tolerance:.2%})",
             )
 
     floor_bucket = _coerce_floor_bucket(record.floor_bucket, warnings)

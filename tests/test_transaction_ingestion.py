@@ -8,6 +8,7 @@ import pytest
 from cn_property_agent.domain import Community, FloorBucket
 from cn_property_agent.providers import RawTransactionRecord, TransactionProvider
 from cn_property_agent.services import (
+    MAX_UNIT_PRICE_TOLERANCE,
     ProviderFetchError,
     RejectionReason,
     TransactionIngestionRequest,
@@ -15,6 +16,7 @@ from cn_property_agent.services import (
     TransactionRejection,
     build_transaction_id,
     normalize_transaction,
+    validate_unit_price_tolerance,
 )
 from cn_property_agent.storage.database import DuckDBDatabase
 from cn_property_agent.storage.repositories import CommunityRepository, TransactionRepository
@@ -261,6 +263,32 @@ def test_normalize_transaction_flags_unit_price_inconsistency(
     assert isinstance(outcome, TransactionRejection)
     assert outcome.reason is RejectionReason.INCONSISTENT_UNIT_PRICE
     assert "44.44%" in outcome.detail
+
+
+@pytest.mark.parametrize("tolerance", [-0.01, 1.5, float("nan"), float("inf"), True, "0.02"])
+def test_invalid_unit_price_tolerance_is_rejected_at_configuration_time(
+    ingestion_community: Community,
+    provider_records: dict[str, RawTransactionRecord],
+    tolerance: object,
+) -> None:
+    with pytest.raises(ValueError, match="unit_price_tolerance"):
+        TransactionIngestionService(
+            provider=FakeTransactionProvider(),
+            repository=None,
+            unit_price_tolerance=tolerance,
+        )
+
+    with pytest.raises(ValueError, match="unit_price_tolerance"):
+        normalize_transaction(
+            provider_records["valid_a"],
+            community=ingestion_community,
+            unit_price_tolerance=tolerance,
+        )
+
+
+def test_valid_unit_price_tolerance_bounds_are_accepted() -> None:
+    assert validate_unit_price_tolerance(0) == 0.0
+    assert validate_unit_price_tolerance(MAX_UNIT_PRICE_TOLERANCE) == MAX_UNIT_PRICE_TOLERANCE
 
 
 def test_normalize_transaction_tolerates_small_rounding(

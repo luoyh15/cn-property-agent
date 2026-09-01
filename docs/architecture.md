@@ -22,6 +22,10 @@ Equivalent providers for another city must satisfy the same source-independent c
 
 A provider is replaceable. A provider failure must not redefine domain objects.
 
+Acquisition (transport/extraction) and interpretation (parsing) are separate steps. A parser consumes an already extracted field mapping plus provenance context and returns a `ParseResult`: successfully parsed source DTOs plus per-row `ParseRejection` entries. One unintelligible row must never discard the rest of a batch, and a rejection identifies its row (source, row index, provider-native id, URL, payload reference) without copying the payload.
+
+Parse failures and data-quality rejections are different vocabularies. A parser rejects only what it cannot interpret; plausibility checks — positive price/area, dates in range, total/unit price consistency — stay in the service-layer quality gates.
+
 ### City profiles
 
 City profiles bind provider implementations and local market conventions to the city-agnostic core. A profile may define provider names, geography levels, benchmark hierarchy, timezone, currency, source-specific settings and feature availability.
