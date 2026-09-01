@@ -11,6 +11,7 @@ repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 owner="${GITHUB_REPOSITORY_OWNER:?GITHUB_REPOSITORY_OWNER is required}"
 run_id="${GITHUB_RUN_ID:-manual}"
 max_turns="${CLAUDE_MAX_TURNS:-40}"
+base_branch="${CLAUDE_BASE_BRANCH:-${GITHUB_REF_NAME:-main}}"
 
 for cmd in git gh jq uv claude; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -19,12 +20,58 @@ for cmd in git gh jq uv claude; do
   fi
 done
 
+retry_cmd() {
+  local max_attempts="$1"
+  local delay_seconds="$2"
+  shift 2
+  local attempt=1
+  local code=0
+
+  while true; do
+    if "$@"; then
+      return 0
+    else
+      code=$?
+    fi
+    if (( attempt >= max_attempts )); then
+      return "$code"
+    fi
+    echo "command failed (attempt ${attempt}/${max_attempts}); retrying in ${delay_seconds}s: $*" >&2
+    sleep "$delay_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
+retry_capture() {
+  local max_attempts="$1"
+  local delay_seconds="$2"
+  shift 2
+  local attempt=1
+  local code=0
+  local output=""
+
+  while true; do
+    if output="$("$@")"; then
+      printf '%s' "$output"
+      return 0
+    else
+      code=$?
+    fi
+    if (( attempt >= max_attempts )); then
+      return "$code"
+    fi
+    echo "command failed (attempt ${attempt}/${max_attempts}); retrying in ${delay_seconds}s: $*" >&2
+    sleep "$delay_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
 # Keep automated sessions isolated from repository-supplied Claude settings,
 # persistent project memory, and MCP servers. User-level settings remain
 # available so the local machine can keep its trusted auth/gateway setup.
 export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
 
-issue_json="$(gh api "repos/$repo/issues/$issue_number")"
+issue_json="$(retry_capture 4 5 gh api "repos/$repo/issues/$issue_number")"
 author="$(jq -r '.user.login' <<<"$issue_json")"
 title="$(jq -r '.title' <<<"$issue_json")"
 body="$(jq -r '.body // ""' <<<"$issue_json")"
@@ -43,23 +90,27 @@ if [[ "$title" != "[claude]"* ]]; then
   exit 3
 fi
 
-base_branch="$(gh repo view "$repo" --json defaultBranchRef --jq '.defaultBranchRef.name')"
 branch="claude/issue-${issue_number}-${run_id}"
+base_commit="$(git rev-parse HEAD)"
 
 on_error() {
   local code=$?
   trap - ERR
-  gh issue comment "$issue_number" --repo "$repo" --body \
+  retry_cmd 2 3 gh issue comment "$issue_number" --repo "$repo" --body \
     "Claude runner failed before creating a PR. See GitHub Actions run ${GITHUB_SERVER_URL:-https://github.com}/${repo}/actions/runs/${run_id}." \
     >/dev/null 2>&1 || true
   exit "$code"
 }
 trap on_error ERR
 
-git fetch origin "$base_branch"
-git checkout -B "$branch" "origin/$base_branch"
+# actions/checkout already fetched and retried the exact workflow revision.
+# Do not perform another pre-task fetch: on intermittent networks it adds a
+# second failure point before Claude can even start. A normal PR can be updated
+# against a newer base branch after the task is pushed.
+git checkout -B "$branch" "$base_commit"
 git config user.name "claude-code-runner"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+git config http.version HTTP/1.1
 
 # The repository-local .venv is fully managed by uv. Once uv.lock is committed,
 # --locked makes every task reproduce the exact dependency graph. Before the
@@ -68,9 +119,9 @@ git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 lock_tracked=false
 if git ls-files --error-unmatch uv.lock >/dev/null 2>&1; then
   lock_tracked=true
-  uv sync --locked
+  retry_cmd 3 5 uv sync --locked
 else
-  uv sync
+  retry_cmd 3 5 uv sync
   rm -f uv.lock
 fi
 
@@ -166,7 +217,7 @@ while IFS= read -r path; do
     AGENTS.md|CLAUDE.md|CLAUDE.local.md|.gitmodules|.mcp.json|.claude/*|.vscode/tasks.json|scripts/run-claude-task.sh|.github/workflows/*|.github/actions/*)
       protected_changed=true
       if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
-        git restore --source="origin/$base_branch" --staged --worktree -- "$path" || true
+        git restore --source="$base_commit" --staged --worktree -- "$path" || true
       else
         rm -rf -- "$path"
       fi
@@ -184,14 +235,14 @@ fi
 if [[ -z "$(git status --porcelain=v1)" ]]; then
   msg="Claude completed Issue #${issue_number} but produced no committable changes."
   [[ "$protected_changed" == "true" ]] && msg+=" Protected automation/policy changes were discarded."
-  gh issue comment "$issue_number" --repo "$repo" --body "$msg"
+  retry_cmd 3 5 gh issue comment "$issue_number" --repo "$repo" --body "$msg"
   trap - ERR
   exit 0
 fi
 
 git add -A
 git commit -m "claude: implement issue #${issue_number}"
-git push --set-upstream origin "$branch"
+retry_cmd 4 10 git push --set-upstream origin "$branch"
 
 pr_title="${title#\[claude\] }"
 if [[ "$pr_title" == "$title" ]]; then
@@ -222,20 +273,23 @@ $(tail -n 160 "$check_log")
 Closes #${issue_number}
 EOF
 
-pr_args=(
-  pr create
-  --repo "$repo"
-  --head "$branch"
-  --base "$base_branch"
-  --title "$pr_title"
-  --body-file "$pr_body_file"
-)
-if [[ "$checks_passed" != "true" ]]; then
-  pr_args+=(--draft)
+pr_url="$(retry_capture 3 5 gh pr list --repo "$repo" --head "$branch" --json url --jq '.[0].url')"
+if [[ -z "$pr_url" ]]; then
+  pr_args=(
+    pr create
+    --repo "$repo"
+    --head "$branch"
+    --base "$base_branch"
+    --title "$pr_title"
+    --body-file "$pr_body_file"
+  )
+  if [[ "$checks_passed" != "true" ]]; then
+    pr_args+=(--draft)
+  fi
+  pr_url="$(retry_capture 4 10 gh "${pr_args[@]}")"
 fi
 
-pr_url="$(gh "${pr_args[@]}")"
-gh issue comment "$issue_number" --repo "$repo" --body "Claude task completed: ${pr_url}"
+retry_cmd 3 5 gh issue comment "$issue_number" --repo "$repo" --body "Claude task completed: ${pr_url}"
 
 trap - ERR
 printf '%s\n' "$pr_url"
