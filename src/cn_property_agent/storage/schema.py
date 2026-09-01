@@ -79,7 +79,7 @@ DDL: tuple[str, ...] = (
     )""",
     """CREATE TABLE IF NOT EXISTS metric_observation (
         metric_id VARCHAR PRIMARY KEY, metric_name VARCHAR NOT NULL, entity_type VARCHAR NOT NULL, entity_id VARCHAR NOT NULL,
-        as_of TIMESTAMPTZ NOT NULL, window VARCHAR, value DOUBLE, unit VARCHAR, sample_size INTEGER,
+        as_of TIMESTAMPTZ NOT NULL, window_label VARCHAR, value DOUBLE, unit VARCHAR, sample_size INTEGER,
         algorithm_version VARCHAR NOT NULL, input_fingerprint VARCHAR NOT NULL, source_record_ids JSON NOT NULL,
         warnings JSON NOT NULL
     )""",
