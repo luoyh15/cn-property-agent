@@ -25,6 +25,11 @@ if [[ -x "$runner_venv/bin/python" ]]; then
   export PATH="$runner_venv/bin:$PATH"
 fi
 
+# Keep automated sessions isolated from repository-supplied Claude settings,
+# persistent project memory, and MCP servers. User-level settings remain
+# available so the local machine can keep its trusted auth/gateway setup.
+export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
+
 issue_json="$(gh api "repos/$repo/issues/$issue_number")"
 author="$(jq -r '.user.login' <<<"$issue_json")"
 title="$(jq -r '.title' <<<"$issue_json")"
@@ -72,7 +77,7 @@ You are implementing GitHub Issue #${issue_number} in repository ${repo}.
 
 Read AGENTS.md before changing code. Follow the repository architecture and coding rules.
 Work only in the current checkout. The outer runner handles git commit, push, and pull-request creation.
-Do not change AGENTS.md, .github/workflows, .github/actions, .gitmodules, or scripts/run-claude-task.sh.
+Do not change AGENTS.md, CLAUDE.md, CLAUDE.local.md, .claude/, .mcp.json, .vscode/tasks.json, .github/workflows, .github/actions, .gitmodules, or scripts/run-claude-task.sh.
 Do not access credentials or unrelated files outside the repository.
 Do not bypass authentication, CAPTCHA, anti-bot, access controls, or source terms.
 Prefer small, testable changes and add/update fixture-based tests when appropriate.
@@ -99,7 +104,6 @@ allowed_tools=(
   "Bash(ruff:*)"
   "Bash(python -m ruff:*)"
   "Bash(ls:*)"
-  "Bash(find:*)"
 )
 
 run_claude() {
@@ -107,6 +111,10 @@ run_claude() {
   claude -p "$prompt" \
     --max-turns "$max_turns" \
     --output-format text \
+    --setting-sources user \
+    --mcp-config '{"mcpServers":{}}' \
+    --strict-mcp-config \
+    --tools "Read,Glob,Grep,Edit,Write,Bash" \
     --allowedTools "${allowed_tools[@]}" \
     --disallowedTools "WebFetch" "WebSearch" \
     | tee -a "$claude_log"
@@ -157,12 +165,13 @@ EOF
   fi
 fi
 
-# Automation and policy files are maintained manually, never by task execution.
+# Automation, agent configuration, editor auto-run files, and policy files are
+# maintained manually, never by task execution.
 protected_changed=false
 while IFS= read -r path; do
   [[ -z "$path" ]] && continue
   case "$path" in
-    AGENTS.md|.gitmodules|scripts/run-claude-task.sh|.github/workflows/*|.github/actions/*)
+    AGENTS.md|CLAUDE.md|CLAUDE.local.md|.gitmodules|.mcp.json|.claude/*|.vscode/tasks.json|scripts/run-claude-task.sh|.github/workflows/*|.github/actions/*)
       protected_changed=true
       if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
         git restore --source="origin/$base_branch" --staged --worktree -- "$path" || true
