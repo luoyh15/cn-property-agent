@@ -27,7 +27,10 @@ _NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?")
 # NFKC rewrites ``㎡`` to ``m2`` and ``²`` to ``2``, so unit tokens must be
 # stripped before any digit is extracted. Longer tokens first.
 _AREA_UNITS = ("平方米", "平方公尺", "平米", "平方", "m2", "㎡", "平")
-_WAN_UNITS = ("万元", "万", "元", "人民币", "rmb", "cny", "¥", "￥")
+# Total-price fields using this converter are contractually denominated in 万元.
+# Do not accept 元/RMB/CNY markers here: accepting them and then multiplying by
+# 10,000 would silently corrupt prices by four orders of magnitude.
+_WAN_UNITS = ("万元", "万")
 _UNIT_PRICE_UNITS = ("元/平方米", "元/平米", "元/m2", "元/㎡", "元每平米", "元", "/") + _AREA_UNITS
 _DAY_UNITS = ("天", "日", "days", "day")
 _YEAR_UNITS = ("年建成", "年建", "年代", "年份", "年")
@@ -104,7 +107,12 @@ def parse_area_sqm(text: str, *, field: str | None = None) -> float:
 
 
 def parse_wan_to_cny(text: str, *, field: str | None = None) -> float:
-    """``"1140"`` / ``"1140万"`` (万元) → CNY."""
+    """Parse a field whose declared unit is 万元 into CNY.
+
+    Bare numbers and explicit ``万``/``万元`` suffixes are accepted. Explicit
+    yuan-denominated strings such as ``11400000元`` are intentionally rejected
+    instead of guessing the unit.
+    """
     return parse_number(text, units=_WAN_UNITS, field=field) * CNY_PER_WAN
 
 
