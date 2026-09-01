@@ -1,0 +1,57 @@
+name: Claude code task
+description: Dispatch a trusted implementation task to the local self-hosted Claude Code runner.
+title: "[claude] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only issues authored by the repository owner and whose title starts with `[claude]` are executable. Public users may see this form, but their issues will not trigger the local runner.
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should Claude implement or change?
+      placeholder: Implement the transaction ingestion service defined in AGENTS.md.
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements and constraints
+      description: Relevant architecture, files, behavior, safety limits, or compatibility constraints.
+      placeholder: |
+        - Follow AGENTS.md
+        - Keep provider-specific logic out of analytics
+        - Add fixture-based tests
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete checks that make the task complete.
+      placeholder: |
+        - pytest passes
+        - ruff passes
+        - new service has unit tests
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Optional design notes, references, or implementation hints.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Local execution acknowledgement
+      options:
+        - label: This task is appropriate for automated execution on the trusted local runner and does not require secrets or access outside the repository.
+          required: true
