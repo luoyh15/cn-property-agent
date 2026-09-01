@@ -14,7 +14,7 @@ from cn_property_agent.domain import (
     TransportMode,
 )
 
-from .dto import RawTransactionRecord
+from .fetch import TransactionFetchResult
 
 
 @runtime_checkable
@@ -24,6 +24,10 @@ class TransactionProvider(Protocol):
     Providers return source-independent DTOs; the ingestion service owns
     normalization into canonical :class:`~cn_property_agent.domain.Transaction`
     records because internal identity is not knowable by an adapter.
+
+    The return value is a :class:`TransactionFetchResult` rather than a bare
+    sequence so that rows the parser could not interpret reach the caller
+    instead of being dropped inside the adapter. Transport failures raise.
     """
 
     async def fetch_transactions(
@@ -32,7 +36,7 @@ class TransactionProvider(Protocol):
         *,
         start_date: date | None = None,
         end_date: date | None = None,
-    ) -> Sequence[RawTransactionRecord]: ...
+    ) -> TransactionFetchResult: ...
 
 
 @runtime_checkable

@@ -26,6 +26,8 @@ Acquisition (transport/extraction) and interpretation (parsing) are separate ste
 
 Parse failures and data-quality rejections are different vocabularies. A parser rejects only what it cannot interpret; plausibility checks — positive price/area, dates in range, total/unit price consistency — stay in the service-layer quality gates.
 
+A `TransactionProvider` therefore returns a `TransactionFetchResult`, not a bare record sequence: parsed DTOs and the batch's `ParseRejection` entries travel together to the service. Its counts each have one meaning — `source_row_count` (rows observed for the request) ≥ `parsed_count` + `parse_rejection_count`; a larger `source_row_count` means the provider discarded rows before parsing. Transport/network failures are not part of the envelope; they propagate and surface as `ProviderFetchError`, so an empty successful fetch is never confused with a broken one.
+
 ### City profiles
 
 City profiles bind provider implementations and local market conventions to the city-agnostic core. A profile may define provider names, geography levels, benchmark hierarchy, timezone, currency, source-specific settings and feature availability.
@@ -41,6 +43,8 @@ The key time-series design is `listing_snapshot`: each observation is append-onl
 ### Services
 
 Expose source-independent workflows and caching. Services are the only interfaces used by API, MCP, agent and analytics orchestration.
+
+Ingestion keeps both failure vocabularies visible instead of collapsing them. `TransactionIngestionResult` reports `source_row_count`, `parsed_count`, `upserted_count`, the provider's `parse_rejections` and the canonical `quality_rejections` separately, so `parsed_count == upserted_count + quality_rejection_count` and `rejection_count` is only ever the sum of the two kinds. Parse rejections are never rewritten into canonical `TransactionRejection` values.
 
 ### Analytics
 

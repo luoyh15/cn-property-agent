@@ -6,6 +6,7 @@ from typing import Iterator
 import pytest
 
 from cn_property_agent.domain import Community, FloorBucket
+from cn_property_agent.providers import TransactionFetchResult
 from cn_property_agent.providers.lianjia import (
     LIANJIA_SOURCE,
     LIANJIA_TRANSACTION_PARSER_VERSION,
@@ -39,9 +40,14 @@ async def ingest(
     rows: list[dict],
     context: LianjiaParseContext,
 ):
-    """Parse Lianjia rows, then run them through the source-independent service."""
+    """Parse Lianjia rows, then run them through the source-independent service.
+
+    The parse result travels as a whole through the provider contract, so parser
+    rejections reach the service exactly as a real adapter would deliver them.
+    """
     parsed = parse_transaction_rows(rows, context=context)
-    provider = FakeTransactionProvider({community.community_id: parsed.records})
+    fetched = TransactionFetchResult.from_parse_result(parsed)
+    provider = FakeTransactionProvider({community.community_id: fetched})
     repository = TransactionRepository(database.connection)
     service = TransactionIngestionService(provider=provider, repository=repository)
     result = await service.ingest(
@@ -66,7 +72,8 @@ async def test_parsed_rows_round_trip_into_duckdb(
     parsed, result, repository = await ingest(database, lianjia_community, rows, lianjia_context)
 
     assert (parsed.parsed_count, parsed.rejected_count) == (2, 0)
-    assert (result.fetched_count, result.upserted_count, result.rejected_count) == (2, 2, 0)
+    assert (result.source_row_count, result.parsed_count, result.upserted_count) == (2, 2, 2)
+    assert result.rejection_count == 0
 
     stored = {
         item.source_transaction_id: item
@@ -129,7 +136,18 @@ async def test_one_malformed_row_costs_only_that_row(
     parsed, result, repository = await ingest(database, lianjia_community, rows, lianjia_context)
 
     assert (parsed.parsed_count, parsed.rejected_count) == (1, 1)
-    assert (result.fetched_count, result.upserted_count, result.rejected_count) == (1, 1, 0)
+    # Two source rows in, one transaction stored, and the malformed row is
+    # visible in the ingestion result rather than silently missing.
+    assert (result.source_row_count, result.parsed_count, result.upserted_count) == (2, 1, 1)
+    assert (result.parse_rejection_count, result.quality_rejection_count) == (1, 0)
+    assert result.parse_rejections == parsed.rejections
+
+    rejection = result.parse_rejections[0]
+    assert rejection.row.source == LIANJIA_SOURCE
+    assert rejection.row.source_row_id == "SH1234567894"
+    assert rejection.row.row_index == 1
+    assert rejection.field == "建筑面积"
+
     stored = repository.list_for_community(lianjia_community.community_id)
     assert [item.source_transaction_id for item in stored] == ["SH1234567890"]
 
@@ -150,8 +168,13 @@ async def test_parse_failures_stay_separate_from_quality_rejections(
     parsed, result, _ = await ingest(database, lianjia_community, rows, lianjia_context)
 
     # Unintelligible text is a parser problem; a well-formed but implausible
-    # value is a canonical data-quality problem.
+    # value is a canonical data-quality problem. Both reach the caller, in
+    # their own vocabulary and under their own count.
     assert [rejection.field for rejection in parsed.rejections] == ["建筑面积"]
     assert parsed.records[1].area_sqm == pytest.approx(-90.0)
-    assert [rejection.reason for rejection in result.rejections] == [RejectionReason.INVALID_AREA]
-    assert result.upserted_count == 1
+    assert [rejection.field for rejection in result.parse_rejections] == ["建筑面积"]
+    assert [rejection.reason for rejection in result.quality_rejections] == [
+        RejectionReason.INVALID_AREA
+    ]
+    assert (result.source_row_count, result.parsed_count, result.upserted_count) == (3, 2, 1)
+    assert result.rejection_count == 2
