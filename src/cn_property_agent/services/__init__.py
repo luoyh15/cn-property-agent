@@ -22,6 +22,7 @@ from .transaction_normalization import (
     normalize_transaction,
     validate_unit_price_tolerance,
 )
+from .transaction_query import TransactionQuery, TransactionQueryService
 
 __all__ = [
     "CommunityResolution",
@@ -39,6 +40,8 @@ __all__ = [
     "TransactionIngestionRequest",
     "TransactionIngestionResult",
     "TransactionIngestionService",
+    "TransactionQuery",
+    "TransactionQueryService",
     "TransactionRejection",
     "build_transaction_id",
     "normalize_transaction",
