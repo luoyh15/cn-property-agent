@@ -7,6 +7,7 @@ from .community_resolver import (
     ResolutionStatus,
 )
 from .errors import ProviderFetchError, ServiceError
+from .listing_ingestion import ListingIngestionResult, ListingIngestionService
 from .transaction_ingestion import (
     TransactionIngestionRequest,
     TransactionIngestionResult,
@@ -30,6 +31,8 @@ __all__ = [
     "CommunityResolutionRequest",
     "CommunityResolver",
     "DEFAULT_UNIT_PRICE_TOLERANCE",
+    "ListingIngestionResult",
+    "ListingIngestionService",
     "MAX_UNIT_PRICE_TOLERANCE",
     "NormalizedTransaction",
     "ProviderFetchError",

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from cn_property_agent.domain import Community, Transaction
+from cn_property_agent.domain import Community, ListingObservation, Transaction
 from cn_property_agent.providers import RawTransactionRecord
 from cn_property_agent.providers.lianjia import LianjiaListingParseContext, LianjiaParseContext
 
@@ -42,6 +42,21 @@ def provider_records() -> dict[str, RawTransactionRecord]:
 @pytest.fixture
 def ingestion_community(communities: list[Community]) -> Community:
     fixture = _load_fixture("provider_transactions.json")
+    return next(item for item in communities if item.community_id == fixture["community_id"])
+
+
+@pytest.fixture
+def provider_observations() -> dict[str, ListingObservation]:
+    fixture = _load_fixture("provider_listings.json")
+    return {
+        name: ListingObservation.model_validate(observation)
+        for name, observation in fixture["observations"].items()
+    }
+
+
+@pytest.fixture
+def listing_community(communities: list[Community]) -> Community:
+    fixture = _load_fixture("provider_listings.json")
     return next(item for item in communities if item.community_id == fixture["community_id"])
 
 
