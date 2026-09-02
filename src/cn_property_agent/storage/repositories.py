@@ -267,6 +267,44 @@ class ListingRepository:
             ],
         )
 
+    def list_for_community(self, community_id: str) -> list[Listing]:
+        """Canonical listing identities of one community, most recently seen first.
+
+        ``listing_id`` is the primary key, so the tie-break makes the order
+        total: two calls over unchanged storage return the same sequence.
+        """
+        cursor = self.connection.execute(
+            """SELECT listing_id, community_id, source, source_listing_id, area_sqm,
+                      layout, floor_bucket, orientation, built_year, building_type,
+                      first_seen_at, last_seen_at, status
+               FROM listing
+               WHERE community_id = ?
+               ORDER BY last_seen_at DESC, listing_id""",
+            [community_id],
+        )
+        return [Listing.model_validate(_row_dict(cursor, row)) for row in cursor.fetchall()]
+
+    def latest_snapshots_for_community(self, community_id: str) -> dict[str, ListingSnapshot]:
+        """Newest stored snapshot per listing of one community, keyed by listing_id.
+
+        A listing without any stored snapshot is simply absent from the mapping;
+        ``(listing_id, snapshot_at)`` is the primary key, so "newest" is
+        unambiguous.
+        """
+        cursor = self.connection.execute(
+            """SELECT s.listing_id, s.snapshot_at, s.list_price_cny, s.unit_price_cny_sqm,
+                      s.status, s.source, s.source_url, s.raw_payload_ref, s.parser_version
+               FROM listing_snapshot s
+               JOIN listing l ON l.listing_id = s.listing_id
+               WHERE l.community_id = ?
+               QUALIFY row_number() OVER (
+                   PARTITION BY s.listing_id ORDER BY s.snapshot_at DESC
+               ) = 1""",
+            [community_id],
+        )
+        snapshots = [ListingSnapshot.model_validate(_row_dict(cursor, row)) for row in cursor.fetchall()]
+        return {item.listing_id: item for item in snapshots}
+
     def history(self, listing_id: str) -> list[ListingSnapshot]:
         cursor = self.connection.execute(
             """SELECT listing_id, snapshot_at, list_price_cny, unit_price_cny_sqm,
