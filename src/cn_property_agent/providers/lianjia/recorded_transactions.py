@@ -28,7 +28,6 @@ caller disguised as a successful empty fetch.
 
 from __future__ import annotations
 
-import json
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -38,21 +37,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from cn_property_agent.domain import Community
 from cn_property_agent.providers import TransactionFetchResult
 
+from .recorded import LianjiaSnapshotError, format_validation_error, load_snapshot_document
 from .transaction_parser import LianjiaParseContext, parse_transaction_rows
-
-
-class LianjiaSnapshotError(Exception):
-    """A recorded snapshot could not be read as a Lianjia transaction batch.
-
-    Covers a missing/unreadable file, invalid JSON, a wrong top-level shape,
-    invalid batch provenance and a non-array ``rows``. Raised rather than
-    returning an empty result so a broken input can never be mistaken for "no
-    transactions were recorded".
-    """
-
-    def __init__(self, path: Path, message: str) -> None:
-        super().__init__(f"lianjia snapshot {path}: {message}")
-        self.path = path
 
 
 class LianjiaTransactionSnapshot(BaseModel):
@@ -82,28 +68,11 @@ class LianjiaTransactionSnapshot(BaseModel):
 def load_transaction_snapshot(path: Path | str) -> LianjiaTransactionSnapshot:
     """Read and validate one snapshot file, or raise :class:`LianjiaSnapshotError`."""
     snapshot_path = Path(path)
-    try:
-        text = snapshot_path.read_text(encoding="utf-8")
-    except OSError as error:
-        raise LianjiaSnapshotError(snapshot_path, f"cannot be read: {error}") from error
-    except UnicodeDecodeError as error:
-        raise LianjiaSnapshotError(snapshot_path, f"is not valid UTF-8: {error}") from error
-
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as error:
-        raise LianjiaSnapshotError(snapshot_path, f"is not valid JSON: {error}") from error
-
-    if not isinstance(payload, dict):
-        raise LianjiaSnapshotError(
-            snapshot_path,
-            f"expected a JSON object at the top level, got {type(payload).__name__}",
-        )
-
+    payload = load_snapshot_document(snapshot_path)
     try:
         return LianjiaTransactionSnapshot.model_validate(payload)
     except ValidationError as error:
-        raise LianjiaSnapshotError(snapshot_path, _format_validation_error(error)) from error
+        raise LianjiaSnapshotError(snapshot_path, format_validation_error(error)) from error
 
 
 class RecordedLianjiaTransactionProvider:
@@ -137,9 +106,3 @@ class RecordedLianjiaTransactionProvider:
             parsed,
             source_row_count=len(snapshot.rows),
         )
-
-
-def _format_validation_error(error: ValidationError) -> str:
-    return "; ".join(
-        f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']}" for item in error.errors()
-    )

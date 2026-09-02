@@ -1,0 +1,42 @@
+{
+  "_fixture": "SYNTHETIC recorded Lianjia current-listing snapshot in the format read by RecordedLianjiaListingProvider. The rows reuse the hand-authored rows of lianjia_listings.json (valid_full, valid_title_fallback, malformed_total_price). This is NOT a snapshot of any live sh.lianjia.com page, and the communities, prices and 房源编号 values are invented.",
+  "_format": "community_id/snapshot_at/source_url/raw_payload_ref are batch-level identity and provenance; rows are already-extracted Lianjia field mappings. Unknown top-level keys such as these notes are ignored by the loader.",
+  "community_id": "cm-sh-pd-002",
+  "snapshot_at": "2026-08-01T00:00:00Z",
+  "source_url": "https://example.invalid/lianjia/ershoufang/cm-sh-pd-002",
+  "raw_payload_ref": "fixture://lianjia/ershoufang/cm-sh-pd-002/2026-08-01/page-1",
+  "rows": [
+    {
+      "房源编号": "SH107100000001",
+      "标题": "示例花园 3室2厅 120.5平米",
+      "建筑面积": "120.5平米",
+      "房屋户型": "3室2厅",
+      "房屋朝向": "南",
+      "所在楼层": "中楼层(共18层)",
+      "建成年代": "2008年建",
+      "建筑类型": "板楼",
+      "挂牌状态": "在售",
+      "总价": "1200",
+      "单价": "99585",
+      "source_url": "https://example.invalid/lianjia/ershoufang/SH107100000001.html",
+      "raw_payload_ref": "fixture://lianjia/ershoufang/SH107100000001"
+    },
+    {
+      "房源编号": "SH107100000002",
+      "标题": "示例花园 2室1厅 88平米",
+      "建筑面积": "88㎡",
+      "朝向": "东南",
+      "楼层": "高楼层(共32层)",
+      "建成年代": "2006",
+      "状态": "在售",
+      "总价": "830万",
+      "单价": "94318元/平米"
+    },
+    {
+      "房源编号": "SH107100000007",
+      "建筑面积": "90平米",
+      "挂牌状态": "在售",
+      "总价": "面议"
+    }
+  ]
+}
