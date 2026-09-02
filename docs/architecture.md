@@ -26,6 +26,8 @@ Acquisition (transport/extraction) and interpretation (parsing) are separate ste
 
 Parse failures and data-quality rejections are different vocabularies. A parser rejects only what it cannot interpret; plausibility checks — positive price/area, dates in range, total/unit price consistency — stay in the service-layer quality gates.
 
+A listing parser emits canonical `ListingObservation` values (a `Listing` plus its `ListingSnapshot`) rather than a source DTO, because an observation needs no cross-source reconciliation to be meaningful: it is what one snapshot saw. `listing_id` is derived from `source` + provider-native `source_listing_id` only, so a price or status change moves the snapshot without moving identity. One row is one instant — `first_seen_at == last_seen_at == snapshot_at` — and real seen-ranges are reconstructed downstream by folding the stored snapshot series, never invented by a parser. Community identity is supplied by the caller through the parse context; a parser never guesses a community from listing text.
+
 A `TransactionProvider` therefore returns a `TransactionFetchResult`, not a bare record sequence: parsed DTOs and the batch's `ParseRejection` entries travel together to the service. Its counts each have one meaning — `source_row_count` (rows observed for the request) ≥ `parsed_count` + `parse_rejection_count`; a larger `source_row_count` means the provider discarded rows before parsing. Transport/network failures are not part of the envelope; they propagate and surface as `ProviderFetchError`, so an empty successful fetch is never confused with a broken one.
 
 ### City profiles
