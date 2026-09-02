@@ -39,9 +39,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Restore partial checkpoint
+        shell: bash
+        run: |
+          branch="claude/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+            git checkout -B "$branch" "origin/$branch"
+            # A checkpoint push deliberately has no upstream. Keep it that way
+            # so the post-run recovery logic can still distinguish a completed
+            # runner push from another partial checkpoint on a later failure.
+            git branch --unset-upstream "$branch" >/dev/null 2>&1 || true
+            echo "::notice::Restored partial Claude checkpoint from origin/$branch"
+          fi
+
       - name: Run trusted Claude task
         shell: bash
         run: |
+          start_commit="$(git rev-parse HEAD)"
+          lock_tracked=false
+          if git ls-tree -r --name-only "$start_commit" -- uv.lock | grep -qx 'uv.lock'; then
+            lock_tracked=true
+          fi
+
           set +e
           bash scripts/run-claude-task.sh "$ISSUE_NUMBER"
           status=$?
@@ -51,15 +70,65 @@ jobs:
             exit 0
           fi
 
-          # The runner creates a unique branch per Actions run and sets its
-          # upstream only after a successful push. If a later step such as
-          # PR creation is blocked by repository policy, preserve the useful
-          # result instead of reporting the entire Claude coding task as failed.
           branch="claude/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+
+          # The runner sets an upstream only after its normal commit/push path.
+          # If that already happened, the implementation is durable and only a
+          # later step such as PR creation failed.
           if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "${branch}@{upstream}" 2>/dev/null)" \
             && [[ "$upstream" == "origin/$branch" ]]; then
             echo "::warning::Claude completed and pushed ${branch}, but post-push automation failed. The branch is recoverable and can be opened as a PR manually or by ChatGPT."
             exit 0
+          fi
+
+          # Claude can exit non-zero after doing substantial useful work (for
+          # example max-turn or session-limit exits). Before Actions cleanup,
+          # strip protected automation/policy changes exactly as the trusted
+          # runner does on its successful path, then checkpoint the remaining
+          # work to the run-specific remote branch.
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            case "$path" in
+              AGENTS.md|CLAUDE.md|CLAUDE.local.md|.gitmodules|.mcp.json|.claude/*|.vscode/tasks.json|scripts/run-claude-task.sh|.github/workflows/*|.github/actions/*)
+                if git cat-file -e "${start_commit}:${path}" 2>/dev/null; then
+                  git restore --source="$start_commit" --staged --worktree -- "$path" || true
+                else
+                  rm -rf -- "$path"
+                fi
+                ;;
+            esac
+          done < <(git status --porcelain=v1 | sed -E 's/^.. //' | sed -E 's/^.* -> //')
+
+          if [[ "$lock_tracked" != "true" && -f uv.lock ]]; then
+            rm -f uv.lock
+          fi
+
+          if [[ -n "$(git status --porcelain=v1)" ]]; then
+            git config user.name "claude-code-runner"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "claude: checkpoint issue #${ISSUE_NUMBER} after runner failure"
+
+            pushed=false
+            for attempt in 1 2 3 4; do
+              if git push origin "HEAD:refs/heads/$branch"; then
+                pushed=true
+                break
+              fi
+              echo "checkpoint push failed (attempt ${attempt}/4); retrying in 10s" >&2
+              sleep 10
+            done
+
+            if [[ "$pushed" == "true" ]]; then
+              echo "::warning::Preserved partial Claude work on origin/$branch. Re-running this workflow run will restore the checkpoint before Claude starts."
+              gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body \
+                "Claude runner exited before completing the task, but partial work was checkpointed to \`$branch\`. Re-running this Actions run will restore that checkpoint before Claude resumes." \
+                >/dev/null 2>&1 || true
+            else
+              echo "::error::Claude produced partial work, but the checkpoint could not be pushed after retries."
+            fi
+          else
+            echo "::notice::Claude failed without committable partial changes; no checkpoint created."
           fi
 
           exit "$status"
