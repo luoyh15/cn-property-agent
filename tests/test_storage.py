@@ -88,3 +88,28 @@ def test_listing_snapshot_history_is_append_only() -> None:
         history = repository.history(listing.listing_id)
 
         assert [row.list_price_cny for row in history] == [9000000, 8600000]
+
+
+def test_community_history_covers_every_listing_of_that_community(
+    communities, provider_observations
+) -> None:
+    """One read returns the whole community's history and nobody else's."""
+    with DuckDBDatabase() as database:
+        CommunityRepository(database.connection).upsert(communities[2])
+        repository = ListingRepository(database.connection)
+        for key in ("valid_a", "valid_a_later", "valid_b", "foreign_community"):
+            observation = provider_observations[key]
+            repository.upsert_listing(observation.listing)
+            repository.append_snapshot(observation.snapshot)
+
+        history = repository.history_for_community("cm-sh-pd-002")
+
+        assert [(row.listing_id, row.snapshot_at.date().isoformat()) for row in history] == [
+            ("lst-fixture-0001", "2026-08-01"),
+            ("lst-fixture-0001", "2026-09-01"),
+            ("lst-fixture-0002", "2026-08-01"),
+        ]
+        assert repository.history_for_community("cm-sh-mh-001") == [
+            provider_observations["foreign_community"].snapshot
+        ]
+        assert repository.history_for_community("cm-does-not-exist") == []

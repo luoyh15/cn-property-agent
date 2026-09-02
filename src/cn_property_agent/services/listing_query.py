@@ -69,6 +69,14 @@ class ListingQueryService:
     def __init__(self, *, repository: ListingRepository) -> None:
         self.repository = repository
 
+    def get_listings(self, community_id: str) -> tuple[Listing, ...]:
+        """Canonical listing identities of one community, without snapshots.
+
+        The identity half of :meth:`get_current_listings`, for callers that
+        need the listings themselves rather than what each is asking now.
+        """
+        return tuple(self.repository.list_for_community(community_id))
+
     def get_current_listings(self, community_id: str) -> tuple[CurrentListing, ...]:
         latest = self.repository.latest_snapshots_for_community(community_id)
         return tuple(
@@ -78,3 +86,14 @@ class ListingQueryService:
 
     def get_listing_history(self, listing_id: str) -> tuple[ListingSnapshot, ...]:
         return tuple(self.repository.history(listing_id))
+
+    def get_community_listing_history(self, community_id: str) -> tuple[ListingSnapshot, ...]:
+        """Every stored snapshot of every listing of one community.
+
+        The whole community's history in one read, so a caller that needs the
+        complete series — repricing describes a listing's first and latest
+        asking price, which the current view alone cannot answer — does not
+        walk :meth:`get_listing_history` once per listing. Snapshots arrive
+        grouped by ``listing_id`` and chronological within each listing.
+        """
+        return tuple(self.repository.history_for_community(community_id))

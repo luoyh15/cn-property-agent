@@ -305,6 +305,26 @@ class ListingRepository:
         snapshots = [ListingSnapshot.model_validate(_row_dict(cursor, row)) for row in cursor.fetchall()]
         return {item.listing_id: item for item in snapshots}
 
+    def history_for_community(self, community_id: str) -> list[ListingSnapshot]:
+        """Every stored snapshot of every listing of one community, in one query.
+
+        This is :meth:`history` widened from one listing to a whole community,
+        so a caller that needs the complete asking-price history of a community
+        does not issue one query per listing. Ordering is by ``listing_id`` then
+        ``snapshot_at``, which is total because ``(listing_id, snapshot_at)`` is
+        the primary key.
+        """
+        cursor = self.connection.execute(
+            """SELECT s.listing_id, s.snapshot_at, s.list_price_cny, s.unit_price_cny_sqm,
+                      s.status, s.source, s.source_url, s.raw_payload_ref, s.parser_version
+               FROM listing_snapshot s
+               JOIN listing l ON l.listing_id = s.listing_id
+               WHERE l.community_id = ?
+               ORDER BY s.listing_id, s.snapshot_at""",
+            [community_id],
+        )
+        return [ListingSnapshot.model_validate(_row_dict(cursor, row)) for row in cursor.fetchall()]
+
     def history(self, listing_id: str) -> list[ListingSnapshot]:
         cursor = self.connection.execute(
             """SELECT listing_id, snapshot_at, list_price_cny, unit_price_cny_sqm,
