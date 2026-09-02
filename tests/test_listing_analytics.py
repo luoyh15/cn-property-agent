@@ -4,12 +4,14 @@ import ast
 from datetime import datetime, timedelta, timezone
 from itertools import permutations
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 from cn_property_agent.analytics import (
     MINIMUM_SAMPLE_COUNT,
     ListingStatusCount,
+    common,
     compute_community_listing_metrics,
     listing_metrics,
 )
@@ -482,9 +484,18 @@ def test_same_instant_observations_do_not_depend_on_input_order(
     assert metrics.snapshot_count == 3
 
 
-def test_analytics_is_source_independent() -> None:
+@pytest.mark.parametrize(
+    ("module", "expected_internal"),
+    [
+        (listing_metrics, {"cn_property_agent.analytics.common", "cn_property_agent.domain"}),
+        # The shared vocabulary is checked too: allowing listing_metrics to
+        # import it would otherwise leave a way in for everything it imports.
+        (common, {"cn_property_agent.domain"}),
+    ],
+)
+def test_analytics_is_source_independent(module: ModuleType, expected_internal: set[str]) -> None:
     """Analytics may see canonical records only, never where they came from."""
-    source = Path(listing_metrics.__file__).read_text(encoding="utf-8")
+    source = Path(module.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
 
     imported: set[str] = set()
@@ -495,7 +506,7 @@ def test_analytics_is_source_independent() -> None:
             imported.add(node.module)
 
     internal = {name for name in imported if name.startswith("cn_property_agent")}
-    assert internal == {"cn_property_agent.analytics.common", "cn_property_agent.domain"}
+    assert internal == expected_internal
     forbidden = (
         "lianjia",
         "beike",
