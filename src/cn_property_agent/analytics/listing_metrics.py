@@ -51,6 +51,9 @@ class CommunityListingMetrics(FrozenModel):
 
     - ``listing_count`` counts canonical identities, whether or not any
       observation of them was supplied;
+    - ``snapshot_count`` counts distinct observations, meaning distinct
+      ``(listing_id, snapshot_at)`` pairs, so the same observation supplied
+      twice is one piece of evidence rather than two;
     - ``identity_only_listing_count`` counts the identities with no observation
       at all. They are visible in ``listing_count`` and ``listing_ids`` but
       contribute no status, price or repricing evidence, because inventing a
@@ -127,12 +130,18 @@ def compute_community_listing_metrics(
     - a repeated ``listing_id`` is rejected, because two identities cannot be
       told apart and their histories would silently merge;
     - a snapshot whose ``listing_id`` was not supplied is rejected, because
-      dropping it would understate exactly the inventory it evidences.
+      dropping it would understate exactly the inventory it evidences;
+    - two snapshots of one listing at one ``snapshot_at`` that disagree are
+      rejected, naming the listing and the instant.
 
-    Snapshots attach to listings through ``listing_id`` alone. Within one
-    listing they are ordered by ``snapshot_at``; observations sharing a
-    timestamp are ordered by their canonical content, never by input position,
-    so no metric depends on the order in which evidence was collected.
+    Snapshots attach to listings through ``listing_id`` alone, and within one
+    listing ``snapshot_at`` alone decides which observation is earliest and
+    which is latest. Canonical storage identifies an observation by
+    ``(listing_id, snapshot_at)``, so a repeat of one is the same observation
+    seen twice and is counted once; two that disagree are contradictory
+    evidence about one instant, and ordering them by their content would invent
+    a history the evidence does not contain. No metric therefore depends on the
+    order in which evidence was collected or passed in.
     """
     minimum = validate_minimum_sample_count(minimum_sample_count)
     validate_community_id(community_id)
@@ -222,32 +231,44 @@ def _index_listings(listings: Iterable[Listing], community_id: str) -> dict[str,
 def _group_snapshots(
     snapshots: Iterable[ListingSnapshot], identities: Mapping[str, Listing]
 ) -> dict[str, tuple[ListingSnapshot, ...]]:
-    grouped: dict[str, list[ListingSnapshot]] = {}
+    """Each listing's history, keyed and ordered by ``snapshot_at`` alone.
+
+    Repeating one observation leaves the history unchanged; contradicting it is
+    an error. Either way a listing never becomes repricing-observable through
+    evidence about a single instant.
+    """
+    grouped: dict[str, dict[AwareDatetime, ListingSnapshot]] = {}
     unknown: set[str] = set()
+    conflicting: set[tuple[str, AwareDatetime]] = set()
     for snapshot in snapshots:
         if snapshot.listing_id not in identities:
             unknown.add(snapshot.listing_id)
             continue
-        grouped.setdefault(snapshot.listing_id, []).append(snapshot)
+        history = grouped.setdefault(snapshot.listing_id, {})
+        if history.setdefault(snapshot.snapshot_at, snapshot) != snapshot:
+            conflicting.add((snapshot.listing_id, snapshot.snapshot_at))
 
     if unknown:
         raise ValueError(
             f"snapshots must belong to a supplied listing, got unknown: {_render(unknown)}"
         )
+    if conflicting:
+        raise ValueError(
+            "snapshots of one listing at one instant must agree, got conflicting:"
+            f" {_render_instants(conflicting)}"
+        )
     return {
-        listing_id: tuple(sorted(items, key=_snapshot_order))
-        for listing_id, items in sorted(grouped.items())
+        listing_id: tuple(history[snapshot_at] for snapshot_at in sorted(history))
+        for listing_id, history in sorted(grouped.items())
     }
-
-
-def _snapshot_order(snapshot: ListingSnapshot) -> tuple[AwareDatetime, str]:
-    """Chronological, with canonical content deciding same-instant ties.
-
-    Two observations of one listing at the same instant carry no evidence about
-    which came later, so neither may win by being passed in first.
-    """
-    return snapshot.snapshot_at, snapshot.model_dump_json()
 
 
 def _render(values: set[str]) -> str:
     return ", ".join(repr(value) for value in sorted(values))
+
+
+def _render_instants(values: set[tuple[str, AwareDatetime]]) -> str:
+    return ", ".join(
+        f"{listing_id!r} at {snapshot_at.isoformat()}"
+        for listing_id, snapshot_at in sorted(values)
+    )

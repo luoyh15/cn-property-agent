@@ -457,12 +457,12 @@ def test_every_permutation_of_one_listing_history_gives_the_same_result(
     assert expected.median_price_change_ratio.value == pytest.approx(-0.1)
 
 
-def test_same_instant_observations_do_not_depend_on_input_order(
+def test_disagreeing_observations_of_one_instant_are_an_error(
     observation: ListingObservation,
 ) -> None:
-    """Two observations at one instant say nothing about which came later."""
+    """Two prices for one instant say nothing about which came later."""
     listing = make_listing(observation.listing, "lst-1")
-    tie = tuple(
+    conflict = tuple(
         make_snapshot(
             observation.snapshot, "lst-1", snapshot_at=FIRST_SEEN + offset, list_price_cny=price
         )
@@ -473,15 +473,47 @@ def test_same_instant_observations_do_not_depend_on_input_order(
         )
     )
 
-    metrics = compute_community_listing_metrics(
-        (listing,), tie, community_id=COMMUNITY, minimum_sample_count=1
-    )
-    shuffled = compute_community_listing_metrics(
-        (listing,), (tie[2], tie[0], tie[1]), community_id=COMMUNITY, minimum_sample_count=1
+    for ordering in permutations(conflict):
+        with pytest.raises(ValueError, match=r"lst-1' at 2026-08-31"):
+            compute_community_listing_metrics(
+                (listing,), ordering, community_id=COMMUNITY, minimum_sample_count=1
+            )
+
+
+def test_a_repeated_observation_is_not_a_second_observation(
+    observation: ListingObservation,
+) -> None:
+    """The same instant seen twice is one observation, not a repricing."""
+    listing = make_listing(observation.listing, "lst-5")
+    only_snapshot = make_snapshot(
+        observation.snapshot, "lst-5", snapshot_at=MIDDLE, list_price_cny=20_000_000.0
     )
 
-    assert shuffled == metrics
-    assert metrics.snapshot_count == 3
+    metrics = compute_community_listing_metrics(
+        (listing,),
+        (only_snapshot, only_snapshot),
+        community_id=COMMUNITY,
+        minimum_sample_count=1,
+    )
+
+    assert metrics.snapshot_count == 1
+    assert metrics.observed_listing_count == 1
+    assert metrics.repricing_observable_count == 0
+    assert metrics.median_price_change_ratio.value is None
+    assert metrics.median_price_change_ratio.usable_count == 0
+
+
+def test_repeated_observations_leave_a_history_unchanged(
+    listings: tuple[Listing, ...], snapshots: tuple[ListingSnapshot, ...]
+) -> None:
+    expected = compute_community_listing_metrics(listings, snapshots, community_id=COMMUNITY)
+
+    duplicated = compute_community_listing_metrics(
+        listings, (*snapshots, *reversed(snapshots)), community_id=COMMUNITY
+    )
+
+    assert duplicated == expected
+    assert duplicated.snapshot_count == 9
 
 
 @pytest.mark.parametrize(
