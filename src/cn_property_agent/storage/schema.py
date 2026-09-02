@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 DDL: tuple[str, ...] = (
     """CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT current_timestamp)""",
@@ -49,6 +49,8 @@ DDL: tuple[str, ...] = (
         source VARCHAR NOT NULL, source_url VARCHAR, publication_date DATE, collected_at TIMESTAMPTZ NOT NULL,
         parser_version VARCHAR NOT NULL, raw_payload_ref VARCHAR
     )""",
+    """CREATE INDEX IF NOT EXISTS idx_market_observation_subject
+       ON market_observation(city_code, geography_type, metric_name, period_start)""",
     """CREATE TABLE IF NOT EXISTS land_parcel (
         parcel_id VARCHAR PRIMARY KEY, city_code VARCHAR NOT NULL, name VARCHAR, district VARCHAR,
         latitude DOUBLE, longitude DOUBLE, land_use VARCHAR, site_area_sqm DOUBLE, residential_gfa_sqm DOUBLE,

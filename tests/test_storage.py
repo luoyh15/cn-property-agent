@@ -1,8 +1,15 @@
 from __future__ import annotations
 
-from cn_property_agent.domain import EntityAlias, Listing, ListingSnapshot
+from pathlib import Path
+
+from cn_property_agent.domain import EntityAlias, Listing, ListingSnapshot, MarketObservation
 from cn_property_agent.storage.database import DuckDBDatabase
-from cn_property_agent.storage.repositories import CommunityRepository, ListingRepository, TransactionRepository
+from cn_property_agent.storage.repositories import (
+    CommunityRepository,
+    ListingRepository,
+    MarketObservationRepository,
+    TransactionRepository,
+)
 
 
 def test_community_and_alias_roundtrip(communities) -> None:
@@ -113,3 +120,36 @@ def test_community_history_covers_every_listing_of_that_community(
             provider_observations["foreign_community"].snapshot
         ]
         assert repository.history_for_community("cm-does-not-exist") == []
+
+
+def test_market_observation_roundtrip_keeps_every_field(
+    market_observations: dict[str, MarketObservation],
+) -> None:
+    """Market observations need no community: the geography is the subject."""
+    with DuckDBDatabase() as database:
+        repository = MarketObservationRepository(database.connection)
+        observation = market_observations["city_quarterly"]
+        repository.upsert(observation)
+
+        rows = repository.list_for_city(observation.city_code)
+
+        assert rows == [observation]
+
+
+def test_schema_initialization_is_repeatable_on_an_existing_database(
+    tmp_path: Path,
+    market_observations: dict[str, MarketObservation],
+) -> None:
+    """Re-running the DDL over a populated file leaves the stored rows intact."""
+    path = tmp_path / "market.duckdb"
+    observation = market_observations["district_january_price"]
+
+    with DuckDBDatabase(path) as database:
+        MarketObservationRepository(database.connection).upsert(observation)
+
+    with DuckDBDatabase(path) as database:
+        database.initialize()
+        repository = MarketObservationRepository(database.connection)
+        repository.upsert(observation)
+
+        assert repository.list_for_city(observation.city_code) == [observation]
