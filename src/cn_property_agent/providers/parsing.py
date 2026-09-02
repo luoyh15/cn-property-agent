@@ -5,7 +5,7 @@ from typing import Iterable
 
 from pydantic import Field
 
-from cn_property_agent.domain import FrozenModel
+from cn_property_agent.domain import FrozenModel, ListingObservation
 
 from .dto import RawTransactionRecord
 
@@ -68,6 +68,27 @@ class ParseResult(FrozenModel):
         return len(self.rejections)
 
 
+class ListingParseResult(FrozenModel):
+    """Outcome of parsing a batch of source rows into listing observations.
+
+    The listing sibling of :class:`ParseResult`. It carries canonical
+    :class:`~cn_property_agent.domain.ListingObservation` values rather than a
+    provider DTO because a listing observation needs no cross-source
+    reconciliation: the observation *is* what was seen at one snapshot time.
+    """
+
+    observations: tuple[ListingObservation, ...] = ()
+    rejections: tuple[ParseRejection, ...] = ()
+
+    @property
+    def parsed_count(self) -> int:
+        return len(self.observations)
+
+    @property
+    def rejected_count(self) -> int:
+        return len(self.rejections)
+
+
 class FieldParseError(ValueError):
     """Raised by a parser helper when a single source value is unintelligible.
 
@@ -99,3 +120,17 @@ def build_parse_result(
         else:
             records.append(outcome)
     return ParseResult(records=tuple(records), rejections=tuple(rejections))
+
+
+def build_listing_parse_result(
+    outcomes: Iterable[ListingObservation | ParseRejection],
+) -> ListingParseResult:
+    """Split per-row outcomes into a :class:`ListingParseResult`, preserving order."""
+    observations: list[ListingObservation] = []
+    rejections: list[ParseRejection] = []
+    for outcome in outcomes:
+        if isinstance(outcome, ParseRejection):
+            rejections.append(outcome)
+        else:
+            observations.append(outcome)
+    return ListingParseResult(observations=tuple(observations), rejections=tuple(rejections))

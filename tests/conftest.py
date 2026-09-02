@@ -7,7 +7,7 @@ import pytest
 
 from cn_property_agent.domain import Community, Transaction
 from cn_property_agent.providers import RawTransactionRecord
-from cn_property_agent.providers.lianjia import LianjiaParseContext
+from cn_property_agent.providers.lianjia import LianjiaListingParseContext, LianjiaParseContext
 
 
 def _load_fixture(name: str) -> dict:
@@ -58,6 +58,27 @@ def lianjia_rows(lianjia_fixture: dict) -> dict[str, dict]:
 @pytest.fixture
 def lianjia_context(lianjia_fixture: dict) -> LianjiaParseContext:
     return LianjiaParseContext.model_validate(lianjia_fixture["context"])
+
+
+@pytest.fixture
+def lianjia_listing_fixture() -> dict:
+    return _load_fixture("lianjia_listings.json")
+
+
+@pytest.fixture
+def lianjia_listing_rows(lianjia_listing_fixture: dict) -> dict[str, dict]:
+    return lianjia_listing_fixture["rows"]
+
+
+@pytest.fixture
+def lianjia_listing_context(lianjia_listing_fixture: dict) -> LianjiaListingParseContext:
+    return LianjiaListingParseContext.model_validate(lianjia_listing_fixture["context"])
+
+
+@pytest.fixture
+def lianjia_later_listing_context(lianjia_listing_fixture: dict) -> LianjiaListingParseContext:
+    """The same community observed at a later snapshot time."""
+    return LianjiaListingParseContext.model_validate(lianjia_listing_fixture["later_context"])
 
 
 @pytest.fixture
