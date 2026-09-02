@@ -6,7 +6,15 @@ from typing import Any, Iterable
 
 import duckdb
 
-from cn_property_agent.domain import Community, EntityAlias, Listing, ListingSnapshot, SourceRef, Transaction
+from cn_property_agent.domain import (
+    Community,
+    EntityAlias,
+    Listing,
+    ListingSnapshot,
+    MarketObservation,
+    SourceRef,
+    Transaction,
+)
 from cn_property_agent.utils import normalize_text
 
 
@@ -334,3 +342,128 @@ class ListingRepository:
             [listing_id],
         )
         return [ListingSnapshot.model_validate(_row_dict(cursor, row)) for row in cursor.fetchall()]
+
+
+_MARKET_OBSERVATION_COLUMNS = """observation_id, city_code, geography_type, geography_code,
+                                 geography_name, period_start, period_end, metric_name,
+                                 "value", unit, source, source_url, publication_date,
+                                 collected_at, parser_version, raw_payload_ref"""
+
+
+class MarketObservationRepository:
+    """Canonical storage of official market observations, keyed by ``observation_id``.
+
+    One row is one published measurement of one metric, for one geography, over
+    one period. The geography is stored as the source states it — a city or
+    district code and name — so no city or provider is privileged by the schema.
+    """
+
+    def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
+        self.connection = connection
+
+    def upsert_many(self, observations: Iterable[MarketObservation]) -> int:
+        count = 0
+        for item in observations:
+            self.upsert(item)
+            count += 1
+        return count
+
+    def upsert(self, item: MarketObservation) -> None:
+        """Persist one observation under its stable ``observation_id``.
+
+        Same semantics as the transaction repository: the identifier is the
+        primary key, so replaying an identical observation rewrites the same
+        row, and re-publishing the same identifier with corrected values
+        overwrites every canonical field — including provenance — rather than
+        creating a second identity for the same measurement.
+        """
+        self.connection.execute(
+            """INSERT INTO market_observation VALUES (
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+               )
+               ON CONFLICT(observation_id) DO UPDATE SET
+                   city_code = excluded.city_code,
+                   geography_type = excluded.geography_type,
+                   geography_code = excluded.geography_code,
+                   geography_name = excluded.geography_name,
+                   period_start = excluded.period_start,
+                   period_end = excluded.period_end,
+                   metric_name = excluded.metric_name,
+                   "value" = excluded."value",
+                   unit = excluded.unit,
+                   source = excluded.source,
+                   source_url = excluded.source_url,
+                   publication_date = excluded.publication_date,
+                   collected_at = excluded.collected_at,
+                   parser_version = excluded.parser_version,
+                   raw_payload_ref = excluded.raw_payload_ref""",
+            [
+                item.observation_id,
+                item.city_code,
+                item.geography_type,
+                item.geography_code,
+                item.geography_name,
+                item.period_start,
+                item.period_end,
+                item.metric_name,
+                item.value,
+                item.unit,
+                item.source,
+                item.source_url,
+                item.publication_date,
+                item.collected_at,
+                item.parser_version,
+                item.raw_payload_ref,
+            ],
+        )
+
+    def list_for_city(
+        self,
+        city_code: str,
+        *,
+        geography_type: str | None = None,
+        geography_code: str | None = None,
+        metric_name: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[MarketObservation]:
+        """Observations of one city, as a chronological market series.
+
+        ``city_code`` is the required subject boundary; every other filter is an
+        optional narrowing, and ``None`` means "do not filter on this field"
+        rather than "match rows whose field is NULL". The date bounds constrain
+        the observed period itself: ``start_date`` requires ``period_start`` on
+        or after it and ``end_date`` requires ``period_end`` on or before it, so
+        a window returns the observations wholly inside it.
+
+        Ordering is ``period_start``, then ``period_end``, then
+        ``observation_id``. A market series is read forwards in time, and the
+        shorter period sorts before the longer one that starts with it, so a
+        monthly figure precedes the quarter containing it. ``observation_id`` is
+        the primary key, which makes the order total and the sequence
+        reproducible across identical queries.
+        """
+        clauses = ["city_code = ?"]
+        params: list[Any] = [city_code]
+        for column, value in (
+            ("geography_type", geography_type),
+            ("geography_code", geography_code),
+            ("metric_name", metric_name),
+        ):
+            if value is not None:
+                clauses.append(f"{column} = ?")
+                params.append(value)
+        if start_date is not None:
+            clauses.append("period_start >= ?")
+            params.append(start_date)
+        if end_date is not None:
+            clauses.append("period_end <= ?")
+            params.append(end_date)
+        cursor = self.connection.execute(
+            f"""SELECT {_MARKET_OBSERVATION_COLUMNS}
+                FROM market_observation
+                WHERE {' AND '.join(clauses)}
+                ORDER BY period_start, period_end, observation_id""",
+            params,
+        )
+        return [MarketObservation.model_validate(_row_dict(cursor, row)) for row in cursor.fetchall()]
