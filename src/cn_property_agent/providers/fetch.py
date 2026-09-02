@@ -8,6 +8,9 @@ visible to callers instead of disappearing between the parser and the service.
 Transport failures are not part of this envelope: they propagate as exceptions
 and surface as ``ProviderFetchError``, so an empty successful fetch can never be
 confused with a broken one.
+
+Sources whose adapters do not interpret rows yet carry only the parsed side of
+that split; see :class:`MarketObservationFetchResult`.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from typing import Any, ClassVar, Iterable, Mapping
 
 from pydantic import Field, model_validator
 
-from cn_property_agent.domain import FrozenModel, ListingObservation
+from cn_property_agent.domain import FrozenModel, ListingObservation, MarketObservation
 
 from .dto import RawTransactionRecord
 from .parsing import ListingParseResult, ParseRejection, ParseResult
@@ -151,3 +154,43 @@ class ListingFetchResult(_FetchResult):
     ) -> "ListingFetchResult":
         """Every observed row parsed cleanly — the common case for imports/fakes."""
         return cls(observations=tuple(observations), source_row_count=source_row_count)
+
+
+class MarketObservationFetchResult(FrozenModel):
+    """Outcome of one ``fetch_market_observations`` call.
+
+    The envelope is deliberately smaller than its transaction and listing
+    siblings: it distinguishes the two outcomes that already exist for official
+    market data, and nothing more.
+
+    - A batch of canonical
+      :class:`~cn_property_agent.domain.MarketObservation` records, possibly
+      empty. An empty batch is a genuine answer — the source published nothing
+      for the requested subject and window — and is a success.
+    - A provider, input or transport failure, which raises instead of
+      returning. An acquisition that did not happen can therefore never reach
+      storage disguised as a market with no published figures.
+
+    There is no per-row rejection channel yet, because there is no market
+    parser yet: the row accounting of :class:`_FetchResult` only means
+    something once an adapter interprets published rows. Adding one later is an
+    additive change to this shape, not a change to the protocol.
+
+    Observations are canonical on arrival. A provider that cannot produce a
+    canonical record must fail rather than emit a provider-specific
+    market-observation DTO for the service layer to reinterpret.
+    """
+
+    observations: tuple[MarketObservation, ...] = ()
+
+    @property
+    def observation_count(self) -> int:
+        return len(self.observations)
+
+    @classmethod
+    def from_observations(
+        cls,
+        observations: Iterable[MarketObservation],
+    ) -> "MarketObservationFetchResult":
+        """Wrap an already canonical batch — the common case for imports/fakes."""
+        return cls(observations=tuple(observations))

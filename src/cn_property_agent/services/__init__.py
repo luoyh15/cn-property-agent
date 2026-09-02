@@ -10,6 +10,11 @@ from .community_evidence import CommunityEvidenceService, CommunityMarketEvidenc
 from .errors import ProviderContractError, ProviderFetchError, ServiceError
 from .listing_ingestion import ListingIngestionResult, ListingIngestionService
 from .listing_query import CurrentListing, ListingQueryService
+from .market_observation_ingestion import (
+    MarketObservationIngestionRequest,
+    MarketObservationIngestionResult,
+    MarketObservationIngestionService,
+)
 from .market_observation_query import MarketObservationQuery, MarketObservationQueryService
 from .transaction_ingestion import (
     TransactionIngestionRequest,
@@ -41,6 +46,9 @@ __all__ = [
     "ListingIngestionService",
     "ListingQueryService",
     "MAX_UNIT_PRICE_TOLERANCE",
+    "MarketObservationIngestionRequest",
+    "MarketObservationIngestionResult",
+    "MarketObservationIngestionService",
     "MarketObservationQuery",
     "MarketObservationQueryService",
     "NormalizedTransaction",

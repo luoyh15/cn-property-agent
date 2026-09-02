@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Mapping, Sequence
 
-from cn_property_agent.domain import Community, ListingObservation
+from cn_property_agent.domain import Community, ListingObservation, MarketObservation
 from cn_property_agent.providers import (
     ListingFetchResult,
+    MarketObservationFetchResult,
     RawTransactionRecord,
     TransactionFetchResult,
 )
@@ -98,3 +99,58 @@ def _as_listing_fetch_result(
     if isinstance(value, ListingFetchResult):
         return value
     return ListingFetchResult.from_observations(value)
+
+
+class FakeMarketObservationProvider:
+    """In-memory `MarketObservationProvider` for tests only.
+
+    One instance answers with one configured batch per requested `city_code`,
+    returned verbatim on every call — including observations of another city,
+    so that the service-side subject check is what the tests exercise. A city
+    that was never configured publishes nothing, which is a successful empty
+    batch rather than a failure. :meth:`publish` swaps in what the source shows
+    from now on, the way a corrected figure would appear between two fetches.
+    """
+
+    def __init__(
+        self,
+        results: Mapping[str, MarketObservationFetchResult | Sequence[MarketObservation]]
+        | None = None,
+        *,
+        error: Exception | None = None,
+    ) -> None:
+        self._results = {
+            city_code: _as_market_observation_fetch_result(value)
+            for city_code, value in (results or {}).items()
+        }
+        self._error = error
+        self.calls: list[tuple[str, date | None, date | None, str | None]] = []
+
+    def publish(
+        self,
+        city_code: str,
+        value: MarketObservationFetchResult | Sequence[MarketObservation],
+    ) -> None:
+        """Replace what the source publishes for `city_code` from now on."""
+        self._results[city_code] = _as_market_observation_fetch_result(value)
+
+    async def fetch_market_observations(
+        self,
+        *,
+        city_code: str,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        geography_code: str | None = None,
+    ) -> MarketObservationFetchResult:
+        self.calls.append((city_code, start_date, end_date, geography_code))
+        if self._error is not None:
+            raise self._error
+        return self._results.get(city_code, MarketObservationFetchResult())
+
+
+def _as_market_observation_fetch_result(
+    value: MarketObservationFetchResult | Sequence[MarketObservation],
+) -> MarketObservationFetchResult:
+    if isinstance(value, MarketObservationFetchResult):
+        return value
+    return MarketObservationFetchResult.from_observations(value)
