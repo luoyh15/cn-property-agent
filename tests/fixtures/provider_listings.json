@@ -1,0 +1,135 @@
+{
+  "_fixture": "SYNTHETIC canonical ListingObservation values for source-independent listing ingestion tests. The source is the invented provider name 'fixture'; no live source is involved and every id, price and URL is made up.",
+  "_units": "list_price_cny and unit_price_cny_sqm in CNY; snapshot_at/first_seen_at/last_seen_at are ISO-8601 timestamps with an explicit UTC offset.",
+  "community_id": "cm-sh-pd-002",
+  "_foreign_community_id": "cm-sh-mh-001 — the 'foreign_community' observation is well formed but belongs to another community than the requested one.",
+  "observations": {
+    "valid_a": {
+      "listing": {
+        "listing_id": "lst-fixture-0001",
+        "community_id": "cm-sh-pd-002",
+        "source": "fixture",
+        "source_listing_id": "listed-001",
+        "area_sqm": 120.5,
+        "layout": "3室2厅",
+        "floor_bucket": "mid",
+        "orientation": "南",
+        "built_year": 2008,
+        "building_type": "板楼",
+        "first_seen_at": "2026-08-01T00:00:00Z",
+        "last_seen_at": "2026-08-01T00:00:00Z",
+        "status": "active"
+      },
+      "snapshot": {
+        "listing_id": "lst-fixture-0001",
+        "snapshot_at": "2026-08-01T00:00:00Z",
+        "list_price_cny": 12000000,
+        "unit_price_cny_sqm": 99585.06,
+        "status": "active",
+        "source": "fixture",
+        "source_url": "https://example.invalid/listing/listed-001",
+        "raw_payload_ref": "fixture://listing/listed-001/2026-08-01",
+        "parser_version": "fixture-listing-v1"
+      }
+    },
+    "valid_b": {
+      "listing": {
+        "listing_id": "lst-fixture-0002",
+        "community_id": "cm-sh-pd-002",
+        "source": "fixture",
+        "source_listing_id": "listed-002",
+        "area_sqm": 88.0,
+        "layout": "2室1厅",
+        "floor_bucket": "high",
+        "orientation": "东南",
+        "built_year": 2006,
+        "first_seen_at": "2026-08-01T00:00:00Z",
+        "last_seen_at": "2026-08-01T00:00:00Z",
+        "status": "active"
+      },
+      "snapshot": {
+        "listing_id": "lst-fixture-0002",
+        "snapshot_at": "2026-08-01T00:00:00Z",
+        "list_price_cny": 8300000,
+        "unit_price_cny_sqm": 94318.18,
+        "status": "active",
+        "source": "fixture",
+        "source_url": "https://example.invalid/listing/listed-002",
+        "raw_payload_ref": "fixture://listing/listed-002/2026-08-01",
+        "parser_version": "fixture-listing-v1"
+      }
+    },
+    "valid_a_later": {
+      "listing": {
+        "listing_id": "lst-fixture-0001",
+        "community_id": "cm-sh-pd-002",
+        "source": "fixture",
+        "source_listing_id": "listed-001",
+        "area_sqm": 120.5,
+        "layout": "3室2厅",
+        "floor_bucket": "mid",
+        "orientation": "南",
+        "built_year": 2008,
+        "building_type": "板楼",
+        "first_seen_at": "2026-09-01T00:00:00Z",
+        "last_seen_at": "2026-09-01T00:00:00Z",
+        "status": "withdrawn"
+      },
+      "snapshot": {
+        "listing_id": "lst-fixture-0001",
+        "snapshot_at": "2026-09-01T00:00:00Z",
+        "list_price_cny": 11300000,
+        "unit_price_cny_sqm": 93775.93,
+        "status": "withdrawn",
+        "source": "fixture",
+        "source_url": "https://example.invalid/listing/listed-001",
+        "raw_payload_ref": "fixture://listing/listed-001/2026-09-01",
+        "parser_version": "fixture-listing-v2"
+      }
+    },
+    "foreign_community": {
+      "listing": {
+        "listing_id": "lst-fixture-0004",
+        "community_id": "cm-sh-mh-001",
+        "source": "fixture",
+        "source_listing_id": "listed-004",
+        "area_sqm": 95.0,
+        "layout": "2室2厅",
+        "floor_bucket": "low",
+        "orientation": "南",
+        "built_year": 2011,
+        "first_seen_at": "2026-08-01T00:00:00Z",
+        "last_seen_at": "2026-08-01T00:00:00Z",
+        "status": "active"
+      },
+      "snapshot": {
+        "listing_id": "lst-fixture-0004",
+        "snapshot_at": "2026-08-01T00:00:00Z",
+        "list_price_cny": 7100000,
+        "unit_price_cny_sqm": 74736.84,
+        "status": "active",
+        "source": "fixture",
+        "source_url": "https://example.invalid/listing/listed-004",
+        "raw_payload_ref": "fixture://listing/listed-004/2026-08-01",
+        "parser_version": "fixture-listing-v1"
+      }
+    },
+    "sparse_provenance": {
+      "listing": {
+        "listing_id": "lst-fixture-0003",
+        "community_id": "cm-sh-pd-002",
+        "source": "fixture",
+        "source_listing_id": "listed-003",
+        "first_seen_at": "2026-08-01T00:00:00Z",
+        "last_seen_at": "2026-08-01T00:00:00Z"
+      },
+      "snapshot": {
+        "listing_id": "lst-fixture-0003",
+        "snapshot_at": "2026-08-01T00:00:00Z",
+        "list_price_cny": 6000000,
+        "source": "fixture",
+        "parser_version": "fixture-listing-v1"
+      }
+    }
+  }
+}
