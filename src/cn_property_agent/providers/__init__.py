@@ -1,5 +1,5 @@
 from .dto import RawTransactionRecord
-from .fetch import ListingFetchResult, TransactionFetchResult
+from .fetch import ListingFetchResult, MarketObservationFetchResult, TransactionFetchResult
 from .parsing import (
     FieldParseError,
     ListingParseResult,
@@ -13,7 +13,7 @@ from .parsing import (
 from .protocols import (
     GeoProvider,
     ListingProvider,
-    MarketProvider,
+    MarketObservationProvider,
     PlanningProvider,
     TransactionProvider,
 )
@@ -24,7 +24,8 @@ __all__ = [
     "ListingFetchResult",
     "ListingParseResult",
     "ListingProvider",
-    "MarketProvider",
+    "MarketObservationFetchResult",
+    "MarketObservationProvider",
     "ParseRejection",
     "ParseRejectionReason",
     "ParseResult",

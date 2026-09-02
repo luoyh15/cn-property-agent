@@ -8,12 +8,11 @@ from cn_property_agent.domain import (
     Community,
     GeocodeResult,
     LandParcel,
-    MarketObservation,
     POI,
     TransportMode,
 )
 
-from .fetch import ListingFetchResult, TransactionFetchResult
+from .fetch import ListingFetchResult, MarketObservationFetchResult, TransactionFetchResult
 
 
 @runtime_checkable
@@ -87,7 +86,28 @@ class GeoProvider(Protocol):
 
 
 @runtime_checkable
-class MarketProvider(Protocol):
+class MarketObservationProvider(Protocol):
+    """Fetch official market observations published about a city.
+
+    The subject is a geography, not a community: an official series exists
+    independently of any community that will later be compared against it. The
+    request is scoped by ``city_code``, and the optional period bounds and
+    ``geography_code`` narrow what is asked of the source. Every returned
+    observation must belong to the requested city; answering about another one
+    is a provider defect, and the ingestion service refuses the batch.
+
+    Unlike the transaction and listing providers, this one returns canonical
+    :class:`~cn_property_agent.domain.MarketObservation` records directly. A
+    published figure carries its own identity, geography and period, so there is
+    nothing an adapter cannot know and nothing left for the service to resolve.
+
+    The return value is a :class:`MarketObservationFetchResult` rather than a
+    bare sequence so the success/failure contract is explicit: a source that
+    published nothing for the request is a successful empty batch, while a
+    provider, input or transport failure raises and can never look like a
+    market with no published figures.
+    """
+
     async def fetch_market_observations(
         self,
         *,
@@ -95,7 +115,7 @@ class MarketProvider(Protocol):
         start_date: date | None = None,
         end_date: date | None = None,
         geography_code: str | None = None,
-    ) -> Sequence[MarketObservation]: ...
+    ) -> MarketObservationFetchResult: ...
 
 
 @runtime_checkable
