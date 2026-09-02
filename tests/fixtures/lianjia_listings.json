@@ -1,0 +1,133 @@
+{
+  "_fixture": "SYNTHETIC representative Lianjia-style current-listing rows. Hand-authored for tests: field names and unit conventions follow patterns commonly seen in historical/open-source Lianjia listing datasets. This is NOT a snapshot of any live sh.lianjia.com page, and the communities, prices and 房源编号 values are invented.",
+  "_units": "建筑面积 in 平米; 总价 in 万元; 单价 in 元/㎡; 快照时间 is an ISO-8601 timestamp with an explicit UTC offset.",
+  "community_id": "cm-sh-pd-002",
+  "context": {
+    "community_id": "cm-sh-pd-002",
+    "snapshot_at": "2026-08-01T00:00:00Z",
+    "source_url": "https://example.invalid/lianjia/ershoufang/cm-sh-pd-002",
+    "raw_payload_ref": "fixture://lianjia/ershoufang/cm-sh-pd-002/2026-08-01/page-1"
+  },
+  "later_context": {
+    "community_id": "cm-sh-pd-002",
+    "snapshot_at": "2026-09-01T00:00:00Z",
+    "source_url": "https://example.invalid/lianjia/ershoufang/cm-sh-pd-002",
+    "raw_payload_ref": "fixture://lianjia/ershoufang/cm-sh-pd-002/2026-09-01/page-1"
+  },
+  "rows": {
+    "valid_full": {
+      "房源编号": "SH107100000001",
+      "标题": "示例花园 3室2厅 120.5平米",
+      "建筑面积": "120.5平米",
+      "房屋户型": "3室2厅",
+      "房屋朝向": "南",
+      "所在楼层": "中楼层(共18层)",
+      "建成年代": "2008年建",
+      "建筑类型": "板楼",
+      "挂牌状态": "在售",
+      "总价": "1200",
+      "单价": "99585",
+      "source_url": "https://example.invalid/lianjia/ershoufang/SH107100000001.html",
+      "raw_payload_ref": "fixture://lianjia/ershoufang/SH107100000001"
+    },
+    "valid_full_after_price_cut": {
+      "房源编号": "SH107100000001",
+      "标题": "示例花园 3室2厅 120.5平米",
+      "建筑面积": "120.5平米",
+      "房屋户型": "3室2厅",
+      "房屋朝向": "南",
+      "所在楼层": "中楼层(共18层)",
+      "建成年代": "2008年建",
+      "建筑类型": "板楼",
+      "挂牌状态": "已下架",
+      "总价": "1130",
+      "单价": "93776",
+      "source_url": "https://example.invalid/lianjia/ershoufang/SH107100000001.html",
+      "raw_payload_ref": "fixture://lianjia/ershoufang/SH107100000001"
+    },
+    "valid_title_fallback": {
+      "房源编号": "SH107100000002",
+      "标题": "示例花园 2室1厅 88平米",
+      "建筑面积": "88㎡",
+      "朝向": "东南",
+      "楼层": "高楼层(共32层)",
+      "建成年代": "2006",
+      "状态": "在售",
+      "总价": "830万",
+      "单价": "94318元/平米"
+    },
+    "valid_minimal": {
+      "房源编号": "SH107100000003",
+      "总价": "600"
+    },
+    "valid_row_snapshot_at": {
+      "房源编号": "SH107100000004",
+      "建筑面积": "７５",
+      "总价": "６２０",
+      "快照时间": "2026-08-02T09:30:00+08:00"
+    },
+    "valid_unrecognized_status": {
+      "房源编号": "SH107100000005",
+      "建筑面积": "95平米",
+      "挂牌状态": "可议价",
+      "所在楼层": "顶层(共6层)",
+      "总价": "880"
+    },
+    "valid_unknown_markers": {
+      "房源编号": "SH107100000006",
+      "建筑面积": "70平米",
+      "建成年代": "暂无数据",
+      "挂牌状态": "暂无数据",
+      "总价": "640"
+    },
+    "malformed_total_price": {
+      "房源编号": "SH107100000007",
+      "建筑面积": "90平米",
+      "挂牌状态": "在售",
+      "总价": "面议"
+    },
+    "malformed_area": {
+      "房源编号": "SH107100000008",
+      "建筑面积": "约九十平米",
+      "挂牌状态": "在售",
+      "总价": "810"
+    },
+    "malformed_snapshot_at": {
+      "房源编号": "SH107100000009",
+      "建筑面积": "90平米",
+      "总价": "810",
+      "快照时间": "昨天下午"
+    },
+    "naive_snapshot_at": {
+      "房源编号": "SH107100000010",
+      "建筑面积": "90平米",
+      "总价": "810",
+      "快照时间": "2026-08-02T09:30:00"
+    },
+    "missing_total_price": {
+      "房源编号": "SH107100000011",
+      "建筑面积": "90平米",
+      "挂牌状态": "在售",
+      "单价": "90000"
+    },
+    "missing_source_id": {
+      "建筑面积": "90平米",
+      "挂牌状态": "在售",
+      "总价": "810"
+    },
+    "blank_source_id": {
+      "房源编号": "暂无数据",
+      "建筑面积": "90平米",
+      "总价": "810"
+    },
+    "non_positive_area": {
+      "房源编号": "SH107100000012",
+      "建筑面积": "0平米",
+      "总价": "810"
+    }
+  },
+  "batches": {
+    "one_valid_one_malformed": ["valid_full", "malformed_total_price"],
+    "empty": []
+  }
+}

@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import date
+from datetime import date, datetime
 
-from cn_property_agent.domain import FloorBucket
+from cn_property_agent.domain import FloorBucket, ListingStatus
 from cn_property_agent.providers import FieldParseError
+
+LIANJIA_SOURCE = "lianjia"
+"""Provider name recorded on every record this package emits."""
 
 CNY_PER_WAN = 10_000.0
 """A 万 is ten thousand CNY; Lianjia quotes total prices in 万元."""
@@ -46,6 +49,13 @@ _FLOOR_BUCKETS: tuple[tuple[tuple[str, ...], FloorBucket], ...] = (
     (("低楼层", "低区"), FloorBucket.LOW),
     (("中楼层", "中区"), FloorBucket.MID),
     (("高楼层", "高区"), FloorBucket.HIGH),
+)
+
+_LISTING_STATUSES: tuple[tuple[tuple[str, ...], ListingStatus], ...] = (
+    (("在售", "出售中", "挂牌中"), ListingStatus.ACTIVE),
+    (("已成交", "成交", "已售", "售出"), ListingStatus.SOLD),
+    (("已下架", "下架", "已撤牌", "撤牌", "已撤单"), ListingStatus.WITHDRAWN),
+    (("已停售", "停售", "暂不可售", "暂停出售"), ListingStatus.OFF_MARKET),
 )
 
 
@@ -146,6 +156,21 @@ def parse_deal_date(text: str, *, field: str | None = None) -> date:
     raise FieldParseError(f"unrecognized date format {text!r}", field=field)
 
 
+def parse_aware_datetime(text: str, *, field: str | None = None) -> datetime:
+    """Parse an ISO-8601 timestamp that states its own UTC offset.
+
+    A machine timestamp without an offset is refused rather than assumed to be
+    UTC or local: guessing would silently move an observation in time.
+    """
+    try:
+        value = datetime.fromisoformat(text)
+    except ValueError as error:
+        raise FieldParseError(f"unrecognized timestamp {text!r}", field=field) from error
+    if value.utcoffset() is None:
+        raise FieldParseError(f"timestamp {text!r} has no UTC offset", field=field)
+    return value
+
+
 def parse_floor_bucket(text: str) -> FloorBucket:
     """Map floor text to a bucket, conservatively.
 
@@ -160,6 +185,24 @@ def parse_floor_bucket(text: str) -> FloorBucket:
     if len(matched) == 1:
         return matched.pop()
     return FloorBucket.UNKNOWN
+
+
+def parse_listing_status(text: str) -> ListingStatus:
+    """Map listing-status wording to a canonical status, conservatively.
+
+    Only the source's own explicit wording (在售 / 已成交 / 已下架 / 已停售 and
+    close variants) is mapped. Anything else — negotiation notes, promotional
+    labels, or text mixing several states — stays ``unknown`` rather than
+    becoming a state that seller-pressure metrics would treat as observed.
+    Unrecognized wording is not a parse failure: the rest of the row is still
+    usable evidence.
+    """
+    matched = {
+        status for tokens, status in _LISTING_STATUSES if any(token in text for token in tokens)
+    }
+    if len(matched) == 1:
+        return matched.pop()
+    return ListingStatus.UNKNOWN
 
 
 def extract_layout(text: str) -> str | None:

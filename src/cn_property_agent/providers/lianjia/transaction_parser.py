@@ -34,6 +34,7 @@ from cn_property_agent.providers import (
 )
 
 from .values import (
+    LIANJIA_SOURCE,
     extract_layout,
     normalize_cell,
     normalize_key,
@@ -46,7 +47,6 @@ from .values import (
     parse_year,
 )
 
-LIANJIA_SOURCE = "lianjia"
 LIANJIA_TRANSACTION_PARSER_VERSION = "lianjia-transaction-v1"
 
 SOURCE_ID_FIELD = "链家编号"
