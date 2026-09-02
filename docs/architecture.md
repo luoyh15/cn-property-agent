@@ -50,6 +50,8 @@ Expose source-independent workflows and caching. Services are the only interface
 
 Ingestion keeps both failure vocabularies visible instead of collapsing them. `TransactionIngestionResult` reports `source_row_count`, `parsed_count`, `upserted_count`, the provider's `parse_rejections` and the canonical `quality_rejections` separately, so `parsed_count == upserted_count + quality_rejection_count` and `rejection_count` is only ever the sum of the two kinds. Parse rejections are never rewritten into canonical `TransactionRejection` values.
 
+Listing ingestion persists one fetch as two distinct things: the `Listing` identity is upserted and the `ListingSnapshot` is appended to that listing's history, so asking-price history is never modelled by mutating one row. Idempotence comes from the storage keys — `listing_id` and `(listing_id, snapshot_at)` — so replaying an unchanged snapshot rewrites the same rows while a later observation adds exactly one history point and widens the seen range. Provenance is carried through untouched. Because `upsert_listing` is keyed by `listing_id` alone, the whole fetched batch is validated against the resolved community before the first write: an observation belonging to a different community is a provider contract failure (`ProviderContractError`), not a per-row rejection, and no sibling from that batch is persisted.
+
 ### Analytics
 
 Pure/deterministic computations over normalized records. No network calls and no free-form LLM calculations.

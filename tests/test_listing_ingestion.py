@@ -17,6 +17,7 @@ from cn_property_agent.providers import (
 )
 from cn_property_agent.services import (
     ListingIngestionService,
+    ProviderContractError,
     ProviderFetchError,
     listing_ingestion,
 )
@@ -80,6 +81,10 @@ def stored_listings(database: DuckDBDatabase) -> list[Listing]:
         f"SELECT {', '.join(LISTING_COLUMNS)} FROM listing ORDER BY listing_id"
     ).fetchall()
     return [Listing.model_validate(dict(zip(LISTING_COLUMNS, row, strict=True))) for row in rows]
+
+
+def stored_snapshot_count(database: DuckDBDatabase) -> int:
+    return database.connection.execute("SELECT count(*) FROM listing_snapshot").fetchone()[0]
 
 
 def test_fake_provider_satisfies_protocol() -> None:
@@ -258,6 +263,66 @@ async def test_provider_failure_is_explicit_and_writes_nothing(
     assert excinfo.value.subject_id == listing_community.community_id
     assert stored_listings(database) == []
     assert repository.history("lst-fixture-0001") == []
+
+
+@pytest.mark.asyncio
+async def test_observation_for_another_community_fails_before_any_write(
+    database: DuckDBDatabase,
+    listing_community: Community,
+    provider_observations: dict[str, ListingObservation],
+) -> None:
+    """A batch that answers about the wrong community is refused whole.
+
+    The matching observation is listed first on purpose: validating row by row
+    while persisting would already have written it before reaching the stray
+    one, leaving a snapshot that is half about one community and half about
+    another.
+    """
+    matching = provider_observations["valid_a"]
+    foreign = provider_observations["foreign_community"]
+    assert foreign.listing.community_id != listing_community.community_id
+
+    provider = make_provider(listing_community, [matching, foreign])
+    service, repository = build_service(database, provider)
+
+    with pytest.raises(ProviderContractError) as excinfo:
+        await service.ingest(listing_community)
+
+    assert excinfo.value.subject_id == listing_community.community_id
+    assert foreign.listing.listing_id in str(excinfo.value)
+    assert foreign.listing.community_id in str(excinfo.value)
+
+    assert stored_listings(database) == []
+    assert stored_snapshot_count(database) == 0
+    assert repository.history(matching.listing.listing_id) == []
+    assert repository.history(foreign.listing.listing_id) == []
+
+
+@pytest.mark.asyncio
+async def test_foreign_observation_cannot_hijack_an_existing_listing(
+    database: DuckDBDatabase,
+    listing_community: Community,
+    communities: list[Community],
+    provider_observations: dict[str, ListingObservation],
+) -> None:
+    """Storage keys listings by `listing_id` alone, so the guard is what protects them."""
+    foreign = provider_observations["foreign_community"]
+    other_community = next(
+        item for item in communities if item.community_id == foreign.listing.community_id
+    )
+    repository = ListingRepository(database.connection)
+    repository.upsert_listing(foreign.listing)
+    repository.append_snapshot(foreign.snapshot)
+
+    provider = make_provider(listing_community, [foreign])
+    service, _ = build_service(database, provider)
+
+    with pytest.raises(ProviderContractError):
+        await service.ingest(listing_community)
+
+    stored = stored_listings(database)
+    assert [item.community_id for item in stored] == [other_community.community_id]
+    assert repository.history(foreign.listing.listing_id) == [foreign.snapshot]
 
 
 def test_service_is_source_independent() -> None:

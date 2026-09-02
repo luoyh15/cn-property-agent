@@ -2,6 +2,7 @@
   "_fixture": "SYNTHETIC canonical ListingObservation values for source-independent listing ingestion tests. The source is the invented provider name 'fixture'; no live source is involved and every id, price and URL is made up.",
   "_units": "list_price_cny and unit_price_cny_sqm in CNY; snapshot_at/first_seen_at/last_seen_at are ISO-8601 timestamps with an explicit UTC offset.",
   "community_id": "cm-sh-pd-002",
+  "_foreign_community_id": "cm-sh-mh-001 — the 'foreign_community' observation is well formed but belongs to another community than the requested one.",
   "observations": {
     "valid_a": {
       "listing": {
@@ -84,6 +85,33 @@
         "source_url": "https://example.invalid/listing/listed-001",
         "raw_payload_ref": "fixture://listing/listed-001/2026-09-01",
         "parser_version": "fixture-listing-v2"
+      }
+    },
+    "foreign_community": {
+      "listing": {
+        "listing_id": "lst-fixture-0004",
+        "community_id": "cm-sh-mh-001",
+        "source": "fixture",
+        "source_listing_id": "listed-004",
+        "area_sqm": 95.0,
+        "layout": "2室2厅",
+        "floor_bucket": "low",
+        "orientation": "南",
+        "built_year": 2011,
+        "first_seen_at": "2026-08-01T00:00:00Z",
+        "last_seen_at": "2026-08-01T00:00:00Z",
+        "status": "active"
+      },
+      "snapshot": {
+        "listing_id": "lst-fixture-0004",
+        "snapshot_at": "2026-08-01T00:00:00Z",
+        "list_price_cny": 7100000,
+        "unit_price_cny_sqm": 74736.84,
+        "status": "active",
+        "source": "fixture",
+        "source_url": "https://example.invalid/listing/listed-004",
+        "raw_payload_ref": "fixture://listing/listed-004/2026-08-01",
+        "parser_version": "fixture-listing-v1"
       }
     },
     "sparse_provenance": {

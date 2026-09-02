@@ -20,21 +20,26 @@ adds exactly one new history point and advances ``last_seen_at``.
 
 Community identity is not re-derived here. The observation carries the
 ``community_id`` the caller already resolved before the fetch; this service
-neither guesses nor rewrites it, exactly as it never rewrites provenance.
+neither guesses nor rewrites it, exactly as it never rewrites provenance. It
+does check it: the whole batch is verified against the requested community
+before the first write, because ``upsert_listing`` is keyed by ``listing_id``
+alone and would happily move an existing listing of another community under a
+result that claims to describe this one.
 """
 
 from __future__ import annotations
 
 import logging
 import time
+from typing import Iterable
 
 from pydantic import Field
 
-from cn_property_agent.domain import Community, FrozenModel
+from cn_property_agent.domain import Community, FrozenModel, ListingObservation
 from cn_property_agent.providers import ListingProvider, ParseRejection
 from cn_property_agent.storage.repositories import ListingRepository
 
-from .errors import ProviderFetchError
+from .errors import ProviderContractError, ProviderFetchError
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +90,9 @@ class ListingIngestionService:
     Persistence is sequential and follows the provider's own row order, so a
     replay writes the same rows in the same sequence. A source that genuinely
     listed nothing yields a successful empty result; a provider that could not
-    deliver at all raises :class:`ProviderFetchError`, so the two can never be
-    confused.
+    deliver at all raises :class:`ProviderFetchError`, and one that answered
+    about a different community raises :class:`ProviderContractError`, so none
+    of the three can be confused with one another.
     """
 
     def __init__(
@@ -109,6 +115,8 @@ class ListingIngestionService:
                 subject_id=community.community_id,
                 message=str(error),
             ) from error
+
+        self._require_requested_community(community, fetched.observations)
 
         listing_ids: list[str] = []
         persisted_count = 0
@@ -140,3 +148,26 @@ class ListingIngestionService:
             listing_ids=tuple(listing_ids),
             parse_rejections=fetched.parse_rejections,
         )
+
+    def _require_requested_community(
+        self,
+        community: Community,
+        observations: Iterable[ListingObservation],
+    ) -> None:
+        """Reject the whole batch unless every listing belongs to `community`.
+
+        Checked up front, over the complete batch, so that a stray observation
+        cannot be persisted and cannot leave the matching siblings written ahead
+        of it behind as a half-applied snapshot.
+        """
+        for observation in observations:
+            observed_id = observation.listing.community_id
+            if observed_id != community.community_id:
+                raise ProviderContractError(
+                    provider=type(self.provider).__name__,
+                    subject_id=community.community_id,
+                    message=(
+                        f"listing {observation.listing.listing_id} belongs to community "
+                        f"{observed_id}"
+                    ),
+                )
