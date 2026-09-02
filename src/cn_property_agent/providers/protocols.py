@@ -8,13 +8,12 @@ from cn_property_agent.domain import (
     Community,
     GeocodeResult,
     LandParcel,
-    ListingObservation,
     MarketObservation,
     POI,
     TransportMode,
 )
 
-from .fetch import TransactionFetchResult
+from .fetch import ListingFetchResult, TransactionFetchResult
 
 
 @runtime_checkable
@@ -41,10 +40,22 @@ class TransactionProvider(Protocol):
 
 @runtime_checkable
 class ListingProvider(Protocol):
+    """Fetch the listings currently observable for an already resolved community.
+
+    One call is one observation of the market: the provider reports what the
+    source showed at a single snapshot time, and history is assembled downstream
+    by storing those snapshots — never by mutating a listing in place.
+
+    The return value is a :class:`ListingFetchResult` rather than a bare
+    sequence so that rows the parser could not interpret reach the caller
+    instead of being dropped inside the adapter. Transport and input failures
+    raise, so an unreadable source can never look like an empty market.
+    """
+
     async def fetch_current_listings(
         self,
         community: Community,
-    ) -> Sequence[ListingObservation]: ...
+    ) -> ListingFetchResult: ...
 
 
 @runtime_checkable
