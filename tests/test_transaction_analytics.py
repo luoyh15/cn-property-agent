@@ -264,7 +264,7 @@ def test_analytics_is_source_independent() -> None:
             imported.add(node.module)
 
     internal = {name for name in imported if name.startswith("cn_property_agent")}
-    assert internal == {"cn_property_agent.domain"}
+    assert internal == {"cn_property_agent.analytics.common", "cn_property_agent.domain"}
     forbidden = (
         "lianjia",
         "beike",

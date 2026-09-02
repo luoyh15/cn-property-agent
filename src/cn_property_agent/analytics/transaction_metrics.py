@@ -1,39 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from datetime import date
-from statistics import median
 
 from pydantic import Field
 
+from cn_property_agent.analytics.common import (
+    MINIMUM_SAMPLE_COUNT,
+    MedianMetric,
+    median_metric,
+    validate_community_id,
+    validate_minimum_sample_count,
+)
 from cn_property_agent.domain import FrozenModel, Transaction
-
-MINIMUM_SAMPLE_COUNT = 3
-"""Fewest usable records a median may summarize.
-
-Below three values a median is either a single observation or the midpoint of a
-pair, which reads like a market level while describing almost nothing. This is
-the only threshold in this module; callers that know their evidence base may
-raise it, and metrics that fall short report ``None`` plus their usable count
-rather than a number that looks precise.
-"""
-
-
-class MedianMetric(FrozenModel):
-    """A median over the records that actually carry the underlying field.
-
-    ``usable_count`` is the number of records the metric could be computed
-    from, which for an optional field is at most the overall sample count.
-    ``value`` is ``None`` whenever that count is below the configured minimum:
-    missing or thin evidence is never imputed, and never reported as zero.
-    """
-
-    value: float | None = None
-    usable_count: int = Field(default=0, ge=0)
-
-    @property
-    def has_value(self) -> bool:
-        return self.value is not None
 
 
 class CommunityTransactionMetrics(FrozenModel):
@@ -91,9 +70,8 @@ def compute_community_transaction_metrics(
     supply on its own, and an implicit choice of either would not be an
     unambiguous deterministic definition.
     """
-    minimum = _validate_minimum_sample_count(minimum_sample_count)
-    if not community_id.strip():
-        raise ValueError("community_id must not be blank")
+    minimum = validate_minimum_sample_count(minimum_sample_count)
+    validate_community_id(community_id)
 
     sample = tuple(transactions)
     foreign = sorted({item.community_id for item in sample if item.community_id != community_id})
@@ -108,15 +86,15 @@ def compute_community_transaction_metrics(
         sample_count=len(sample),
         minimum_sample_count=minimum,
         latest_deal_date=max((item.deal_date for item in sample), default=None),
-        median_unit_price_cny_sqm=_median_metric(
+        median_unit_price_cny_sqm=median_metric(
             [item.unit_price_cny_sqm for item in sample], minimum
         ),
-        median_deal_price_cny=_median_metric([item.deal_price_cny for item in sample], minimum),
-        median_days_on_market_days=_median_metric(
+        median_deal_price_cny=median_metric([item.deal_price_cny for item in sample], minimum),
+        median_days_on_market_days=median_metric(
             [float(item.days_on_market) for item in sample if item.days_on_market is not None],
             minimum,
         ),
-        median_negotiation_discount=_median_metric(
+        median_negotiation_discount=median_metric(
             [
                 _negotiation_discount(item.initial_listing_price_cny, item.deal_price_cny)
                 for item in sample
@@ -137,17 +115,3 @@ def _negotiation_discount(initial_listing_price_cny: float, deal_price_cny: floa
     a negative discount; that is an observation, not an error to clamp away.
     """
     return (initial_listing_price_cny - deal_price_cny) / initial_listing_price_cny
-
-
-def _median_metric(values: Sequence[float], minimum_sample_count: int) -> MedianMetric:
-    if len(values) < minimum_sample_count:
-        return MedianMetric(usable_count=len(values))
-    return MedianMetric(value=float(median(values)), usable_count=len(values))
-
-
-def _validate_minimum_sample_count(value: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"minimum_sample_count must be an integer, got {value!r}")
-    if value < 1:
-        raise ValueError(f"minimum_sample_count must be at least 1, got {value!r}")
-    return value
