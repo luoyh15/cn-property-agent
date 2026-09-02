@@ -6,6 +6,7 @@ from .community_resolver import (
     RepositoryCommunityResolver,
     ResolutionStatus,
 )
+from .community_evidence import CommunityEvidenceService, CommunityMarketEvidence
 from .errors import ProviderContractError, ProviderFetchError, ServiceError
 from .listing_ingestion import ListingIngestionResult, ListingIngestionService
 from .listing_query import CurrentListing, ListingQueryService
@@ -27,6 +28,8 @@ from .transaction_normalization import (
 from .transaction_query import TransactionQuery, TransactionQueryService
 
 __all__ = [
+    "CommunityEvidenceService",
+    "CommunityMarketEvidence",
     "CommunityResolution",
     "CommunityResolutionCandidate",
     "CommunityResolutionRequest",
