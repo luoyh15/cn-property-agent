@@ -1,0 +1,100 @@
+{
+  "_fixture": "SYNTHETIC recorded Shanghai official market dataset in the format read by RecordedShanghaiOfficialMarketProvider. It is NOT a capture of any live government page: the indicator wording and column names imitate published resale/new-home tables, but every figure, region code, publication date and URL is invented and must not be cited as official data.",
+  "_format": "city_code/collected_at are batch-level: the subject the dataset was recorded for and the instant it was read. rows are already-extracted official table rows. Provenance (发布日期/来源链接/raw_payload_ref) is row-level because one capture covers several tables published on different days; a row that omits one publishes nothing there. Rows are deliberately not in chronological order, because the adapter's output must not depend on their layout. Unknown top-level keys such as these notes are ignored by the loader.",
+  "city_code": "shanghai",
+  "collected_at": "2026-04-08T01:30:00Z",
+  "rows": [
+    {
+      "指标": "二手住宅成交均价",
+      "地区": "浦东新区",
+      "地区代码": "310115",
+      "地区层级": "区",
+      "统计周期": "2026-02",
+      "数值": "77,200",
+      "单位": "元/平方米",
+      "发布日期": "2026-03-16",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026-02",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026-02"
+    },
+    {
+      "指标": "新建商品住宅销售价格指数",
+      "地区": "上海市",
+      "地区层级": "市",
+      "统计周期": "2026-01",
+      "数值": 100.4,
+      "单位": "上月=100"
+    },
+    {
+      "指标": "二手住宅成交套数",
+      "地区": "上海市",
+      "地区代码": "310000",
+      "地区层级": "市",
+      "统计周期": "2026-02",
+      "数值": "14,860",
+      "单位": "套",
+      "发布日期": "2026-03-16",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026-02",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026-02"
+    },
+    {
+      "指标": "二手住宅成交均价",
+      "地区": "上海市",
+      "地区代码": "310000",
+      "地区层级": "市",
+      "统计周期": "2026Q1",
+      "数值": "71,500",
+      "单位": "元/平方米",
+      "发布日期": "2026-04-07",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026q1",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026q1"
+    },
+    {
+      "指标": "二手住宅成交套数",
+      "地区": "浦东新区",
+      "地区代码": "310115",
+      "地区层级": "区",
+      "统计周期": "2026-01",
+      "数值": "1,820",
+      "单位": "套",
+      "发布日期": "2026-02-16",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026-01",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026-01"
+    },
+    {
+      "指标": "二手住宅成交均价",
+      "地区": "浦东新区",
+      "地区代码": "310115",
+      "地区层级": "区",
+      "统计周期": "2026-01",
+      "数值": "78,000",
+      "单位": "元/平方米",
+      "发布日期": "2026-02-16",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026-01",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026-01"
+    },
+    {
+      "指标": "二手住宅成交套数",
+      "地区": "上海市",
+      "地区代码": "310000",
+      "地区层级": "市",
+      "统计周期": "2026年1月",
+      "数值": "15,220",
+      "单位": "套",
+      "发布日期": "2026年2月16日",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026-01",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026-01"
+    },
+    {
+      "指标": "二手住宅成交均价",
+      "地区": "闵行区",
+      "地区代码": "310112",
+      "地区层级": "区",
+      "统计周期": "2026-01",
+      "数值": "62,400",
+      "单位": "元/平方米",
+      "发布日期": "2026-02-16",
+      "来源链接": "https://example.invalid/shanghai-official/resale/2026-01",
+      "raw_payload_ref": "fixture://shanghai-official/resale/2026-01"
+    }
+  ]
+}
